@@ -71,3 +71,4 @@ self.onmessage = (e: MessageEvent) => {
     timestampMs,
   });
 };
+

@@ -59,6 +59,18 @@ self.onmessage = async (e: MessageEvent) => {
     return;
   }
 
+  if (type === 'SET_NUM_POSES') {
+    const count = e.data.numPoses || 2;
+    if (landmarker) {
+      try {
+        await landmarker.setOptions({ numPoses: count });
+      } catch (err) {
+        console.warn('Worker: could not set numPoses:', err);
+      }
+    }
+    return;
+  }
+
   if (type === 'PROCESS_FRAME') {
     if (!landmarker) {
       if (bitmap && typeof bitmap.close === 'function') bitmap.close();

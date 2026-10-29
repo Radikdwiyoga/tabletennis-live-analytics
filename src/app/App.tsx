@@ -107,13 +107,14 @@ export function App() {
                   onCloseCalibration={() => setIsCalibrating(false)}
                 />
                 <ReelOverlayHUD
-                  p1={pose.p1}
-                  p2={pose.p2}
+                  players={pose.players}
                   currentBall={ball.currentBall}
                   trajectory={ball.trajectory}
                   rallyStats={ball.rallyStats}
                   colorProfile={ball.colorProfile}
                   onColorProfileChange={ball.setColorProfile}
+                  matchMode={pose.matchMode}
+                  onMatchModeChange={pose.setMatchMode}
                   metrics={pose.metrics}
                   videoRef={camera.videoRef}
                   sessionDurationFormatted={formatDuration(recorder.recordingDurationMs)}

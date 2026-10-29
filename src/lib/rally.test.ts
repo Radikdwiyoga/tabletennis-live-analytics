@@ -63,3 +63,4 @@ describe('RallyTracker', () => {
     expect(stats.totalShots).toBe(1); // Lifetime total shots preserved
   });
 });
+

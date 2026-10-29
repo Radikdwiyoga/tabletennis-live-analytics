@@ -1,23 +1,27 @@
 import React from 'react';
-import { PlayerFrame } from '@/lib/playerTracker';
+import { PlayerFrame, PlayerId } from '@/lib/playerTracker';
 import { BouncePoint } from '@/lib/rally';
 import { TABLE_WIDTH_CM, TABLE_HEIGHT_CM } from '@/lib/homography';
 
 interface MiniTableMapProps {
-  p1: PlayerFrame | null;
-  p2: PlayerFrame | null;
+  players: Record<PlayerId, PlayerFrame | null>;
   bounces?: BouncePoint[];
 }
 
-export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2, bounces = [] }) => {
-  // Miniature dimensions: 144px width, aspect ratio 274 : 152.5 => height ~80px
-  const mapWidth = 144;
+const PLAYER_BADGE_STYLES: Record<PlayerId, { bg: string; text: string; num: string }> = {
+  P1: { bg: 'bg-lime-500 shadow-lime-500/50', text: 'text-slate-950', num: '1' },
+  P3: { bg: 'bg-cyan-500 shadow-cyan-500/50', text: 'text-slate-950', num: '3' },
+  P2: { bg: 'bg-purple-500 shadow-purple-500/50', text: 'text-white', num: '2' },
+  P4: { bg: 'bg-amber-500 shadow-amber-500/50', text: 'text-slate-950', num: '4' },
+};
+
+export const MiniTableMap: React.FC<MiniTableMapProps> = ({ players, bounces = [] }) => {
+  const mapWidth = 148;
   const mapHeight = Math.round(mapWidth * (TABLE_HEIGHT_CM / TABLE_WIDTH_CM));
 
   const scaleX = mapWidth / TABLE_WIDTH_CM;
   const scaleY = mapHeight / TABLE_HEIGHT_CM;
 
-  // Convert table cm to mini map px
   const toMini = (tablePos?: { x: number; y: number }) => {
     if (!tablePos) return null;
     const x = Math.max(-15, Math.min(TABLE_WIDTH_CM + 15, tablePos.x)) * scaleX;
@@ -25,10 +29,6 @@ export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2, bounces = []
     return { x, y };
   };
 
-  const p1Mini = toMini(p1?.tablePos);
-  const p2Mini = toMini(p2?.tablePos);
-
-  // Take the most recent 20 bounces to keep map clean and responsive
   const recentBounces = bounces.slice(-20);
 
   return (
@@ -55,24 +55,24 @@ export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2, bounces = []
         />
 
         {/* Zone Labels */}
-        <span className="absolute left-2 top-1 text-[9px] font-black text-lime-400/50 select-none">
-          P1
+        <span className="absolute left-2 top-1 text-[8px] font-black text-lime-400/50 select-none">
+          Tim A
         </span>
-        <span className="absolute right-2 top-1 text-[9px] font-black text-purple-400/50 select-none">
-          P2
+        <span className="absolute right-2 top-1 text-[8px] font-black text-purple-400/50 select-none">
+          Tim B
         </span>
 
-        {/* Ball Bounces (Heatmap points) */}
+        {/* Ball Bounces */}
         {recentBounces.map((b) => {
           const bx = b.tableX * scaleX;
           const by = b.tableY * scaleY;
-          const isP1Hitter = b.hitter === 'P1';
+          const isP1Team = b.hitter === 'P1';
 
           return (
             <div
               key={b.id}
               className={`absolute w-2 h-2 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-sm ${
-                isP1Hitter ? 'bg-orange-400 shadow-orange-400/80' : 'bg-purple-400 shadow-purple-400/80'
+                isP1Team ? 'bg-orange-400 shadow-orange-400/80' : 'bg-purple-400 shadow-purple-400/80'
               }`}
               style={{ left: `${bx}px`, top: `${by}px` }}
               title={`Pantulan ${b.hitter} (${b.tableX}, ${b.tableY} cm)`}
@@ -80,29 +80,27 @@ export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2, bounces = []
           );
         })}
 
-        {/* P1 Position Marker */}
-        {p1Mini && (
-          <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-150 z-10"
-            style={{ left: `${p1Mini.x}px`, top: `${p1Mini.y}px` }}
-          >
-            <div className="w-3.5 h-3.5 rounded-full bg-lime-500 border border-white shadow-md shadow-lime-500/50 flex items-center justify-center">
-              <span className="text-[7px] font-black text-slate-950">1</span>
-            </div>
-          </div>
-        )}
+        {/* Render Players Markers (P1, P2, P3, P4) */}
+        {(['P1', 'P2', 'P3', 'P4'] as PlayerId[]).map((id) => {
+          const p = players[id];
+          const coords = toMini(p?.tablePos);
+          if (!coords) return null;
+          const style = PLAYER_BADGE_STYLES[id];
 
-        {/* P2 Position Marker */}
-        {p2Mini && (
-          <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-150 z-10"
-            style={{ left: `${p2Mini.x}px`, top: `${p2Mini.y}px` }}
-          >
-            <div className="w-3.5 h-3.5 rounded-full bg-purple-500 border border-white shadow-md shadow-purple-500/50 flex items-center justify-center">
-              <span className="text-[7px] font-black text-white">2</span>
+          return (
+            <div
+              key={id}
+              className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-150 z-10"
+              style={{ left: `${coords.x}px`, top: `${coords.y}px` }}
+            >
+              <div
+                className={`w-3.5 h-3.5 rounded-full ${style.bg} border border-white shadow-md flex items-center justify-center`}
+              >
+                <span className={`text-[7px] font-black ${style.text}`}>{style.num}</span>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })}
       </div>
 
       {/* Footer Summary */}

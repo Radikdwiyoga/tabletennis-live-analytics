@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { PlayerTracker, PlayerFrame, RawPose } from '@/lib/playerTracker';
+import { PlayerTracker, PlayerFrame, RawPose, MatchMode, PlayerId } from '@/lib/playerTracker';
 import { CalibrationResult } from '@/lib/homography';
 
 export interface PoseTrackerMetrics {
@@ -12,17 +12,28 @@ export interface PoseTrackerMetrics {
 export interface UsePoseTrackerResult {
   p1: PlayerFrame | null;
   p2: PlayerFrame | null;
+  p3: PlayerFrame | null;
+  p4: PlayerFrame | null;
+  players: Record<PlayerId, PlayerFrame | null>;
   metrics: PoseTrackerMetrics;
   isPoseEnabled: boolean;
+  matchMode: MatchMode;
+  setMatchMode: (mode: MatchMode) => void;
   setIsPoseEnabled: (enabled: boolean) => void;
 }
 
 export function usePoseTracker(
   videoRef: React.RefObject<HTMLVideoElement>,
-  calibration: CalibrationResult | null = null
+  calibration: CalibrationResult | null = null,
+  initialMode: MatchMode = 'singles'
 ): UsePoseTrackerResult {
-  const [p1, setP1] = useState<PlayerFrame | null>(null);
-  const [p2, setP2] = useState<PlayerFrame | null>(null);
+  const [matchMode, setMatchModeState] = useState<MatchMode>(initialMode);
+  const [players, setPlayers] = useState<Record<PlayerId, PlayerFrame | null>>({
+    P1: null,
+    P2: null,
+    P3: null,
+    P4: null,
+  });
   const [isPoseEnabled, setIsPoseEnabled] = useState<boolean>(true);
   const [metrics, setMetrics] = useState<PoseTrackerMetrics>({
     inferenceFps: 0,
@@ -32,12 +43,23 @@ export function usePoseTracker(
   });
 
   const workerRef = useRef<Worker | null>(null);
-  const trackerRef = useRef<PlayerTracker>(new PlayerTracker());
+  const trackerRef = useRef<PlayerTracker>(new PlayerTracker(initialMode));
   const isProcessingRef = useRef<boolean>(false);
   const frameCountRef = useRef<number>(0);
   const lastFpsTimeRef = useRef<number>(performance.now());
   const animFrameIdRef = useRef<number | null>(null);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const setMatchMode = useCallback((newMode: MatchMode) => {
+    setMatchModeState(newMode);
+    trackerRef.current.setMode(newMode);
+    if (workerRef.current) {
+      workerRef.current.postMessage({
+        type: 'SET_NUM_POSES',
+        numPoses: newMode === 'doubles' ? 4 : 2,
+      });
+    }
+  }, []);
 
   // Initialize Worker
   useEffect(() => {
@@ -58,6 +80,11 @@ export function usePoseTracker(
             isReady: true,
             delegate: delegate || 'GPU',
           }));
+          // Synchronize numPoses
+          worker.postMessage({
+            type: 'SET_NUM_POSES',
+            numPoses: matchMode === 'doubles' ? 4 : 2,
+          });
         } else if (type === 'ERROR') {
           console.warn('Pose worker reported error:', error);
           setMetrics((prev) => ({
@@ -71,7 +98,7 @@ export function usePoseTracker(
           const vWidth = video?.videoWidth || 1280;
           const vHeight = video?.videoHeight || 720;
 
-          // Update pure tracker with hysteresis and smoothing
+          // Update tracker
           const tracked = trackerRef.current.update(
             poses as RawPose[],
             timestampMs,
@@ -80,8 +107,7 @@ export function usePoseTracker(
             calibration
           );
 
-          setP1(tracked.p1);
-          setP2(tracked.p2);
+          setPlayers(tracked);
 
           // Update metrics
           frameCountRef.current++;
@@ -113,7 +139,7 @@ export function usePoseTracker(
       }
       trackerRef.current.reset();
     };
-  }, [isPoseEnabled, calibration, videoRef]);
+  }, [isPoseEnabled, calibration, videoRef, matchMode]);
 
   // Frame pump loop
   const processFrame = useCallback(async () => {
@@ -131,7 +157,6 @@ export function usePoseTracker(
       return;
     }
 
-    // Target 640px downscaled width for 25+ fps on mobile devices
     const targetWidth = 640;
     const scale = targetWidth / Math.max(video.videoWidth, 1);
     const targetHeight = Math.round(video.videoHeight * scale);
@@ -200,11 +225,15 @@ export function usePoseTracker(
   }, [isPoseEnabled, processFrame, videoRef]);
 
   return {
-    p1,
-    p2,
+    p1: players.P1,
+    p2: players.P2,
+    p3: players.P3,
+    p4: players.P4,
+    players,
     metrics,
     isPoseEnabled,
+    matchMode,
+    setMatchMode,
     setIsPoseEnabled,
   };
 }
-
