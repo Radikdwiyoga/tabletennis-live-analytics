@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { CameraView } from '@/components/CameraView';
 import { useCamera } from '@/components/useCamera';
 import { useRecorder } from '@/components/useRecorder';
+import { usePoseTracker } from '@/components/usePoseTracker';
 import { RecordControl } from '@/components/RecordControl';
 import { SessionHistoryModal } from '@/components/SessionHistoryModal';
 import { CalibrationOverlay } from '@/components/CalibrationOverlay';
+import { ReelOverlayHUD } from '@/components/ReelOverlayHUD';
 import { CalibrationResult } from '@/lib/homography';
 import { formatDuration } from '@/lib/recorder';
-import { ShieldCheck, Video } from 'lucide-react';
+import { ShieldCheck, Activity } from 'lucide-react';
 
 export function App() {
   const camera = useCamera();
@@ -16,6 +18,9 @@ export function App() {
   const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
   const [activeCalibration, setActiveCalibration] = useState<CalibrationResult | null>(null);
   const [savedNotification, setSavedNotification] = useState<string | null>(null);
+
+  // Real-time pose tracking (F4) in Web Worker
+  const pose = usePoseTracker(camera.videoRef, activeCalibration);
 
   const handleStartRecord = async () => {
     if (!camera.stream) {
@@ -77,24 +82,34 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col gap-4">
-        {/* Camera Container with recording indicator and calibration overlay */}
+        {/* Camera Container with recording indicator, calibration overlay, and Reel HUD */}
         <div className="flex-1 flex flex-col items-center justify-center">
           <CameraView
             camera={camera}
             isRecording={recorder.isRecording}
             recordingDurationFormatted={formatDuration(recorder.recordingDurationMs)}
             overlayChildren={
-              <CalibrationOverlay
-                videoRef={camera.videoRef}
-                isCalibrating={isCalibrating}
-                onCalibrationChange={setActiveCalibration}
-                onCloseCalibration={() => setIsCalibrating(false)}
-              />
+              <>
+                <CalibrationOverlay
+                  videoRef={camera.videoRef}
+                  isCalibrating={isCalibrating}
+                  onCalibrationChange={setActiveCalibration}
+                  onCloseCalibration={() => setIsCalibrating(false)}
+                />
+                <ReelOverlayHUD
+                  p1={pose.p1}
+                  p2={pose.p2}
+                  metrics={pose.metrics}
+                  videoRef={camera.videoRef}
+                  sessionDurationFormatted={formatDuration(recorder.recordingDurationMs)}
+                  isCalibrating={isCalibrating}
+                />
+              </>
             }
           />
         </div>
 
-        {/* Floating / Bottom Action Control Bar for F2 & F3 */}
+        {/* Floating / Bottom Action Control Bar */}
         <div className="w-full flex justify-center py-1">
           <RecordControl
             isRecording={recorder.isRecording}
@@ -114,23 +129,21 @@ export function App() {
         <div className="w-full bg-slate-900/60 border border-slate-800 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-orange-500/10 text-orange-400">
-              <Video className="w-4 h-4" />
+              <Activity className="w-4 h-4" />
             </div>
             <div>
               <p className="font-medium text-slate-200">
-                Fase 1: Kamera (F1), Rekam (F2) & Kalibrasi Meja (F3)
+                Fase 1 & Fase 2: Tracking Pose P1 & P2 (MediaPipe Lite) & Reel HUD Aktif
               </p>
               <p className="text-slate-400">
-                {activeCalibration
-                  ? 'Meja sudah terkalibrasi ke standar 274 × 152.5 cm. Homografi aktif untuk pemetaan pemain dan bola.'
-                  : 'Tekan "Kalibrasi" lalu ketuk 4 sudut meja fisik (kiri-dekat, kanan-dekat, kanan-jauh, kiri-jauh) untuk mengaktifkan pemetaan koordinat meja.'}
+                Deteksi pose pemain berjalan di Web Worker untuk menjaga fluiditas 25+ fps. Label P1 (hijau) & P2 (ungu) dipetakan otomatis ke sisi meja dan ditampilkan pada peta meja mini.
               </p>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Session History & Playback Modal */}
+      {/* Session History & Playback Modal (F6) */}
       <SessionHistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
