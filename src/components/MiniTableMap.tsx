@@ -1,15 +1,17 @@
 import React from 'react';
 import { PlayerFrame } from '@/lib/playerTracker';
+import { BouncePoint } from '@/lib/rally';
 import { TABLE_WIDTH_CM, TABLE_HEIGHT_CM } from '@/lib/homography';
 
 interface MiniTableMapProps {
   p1: PlayerFrame | null;
   p2: PlayerFrame | null;
+  bounces?: BouncePoint[];
 }
 
-export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2 }) => {
-  // Miniature dimensions: 140px width, aspect ratio 274 : 152.5 => height ~78px
-  const mapWidth = 140;
+export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2, bounces = [] }) => {
+  // Miniature dimensions: 144px width, aspect ratio 274 : 152.5 => height ~80px
+  const mapWidth = 144;
   const mapHeight = Math.round(mapWidth * (TABLE_HEIGHT_CM / TABLE_WIDTH_CM));
 
   const scaleX = mapWidth / TABLE_WIDTH_CM;
@@ -18,24 +20,26 @@ export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2 }) => {
   // Convert table cm to mini map px
   const toMini = (tablePos?: { x: number; y: number }) => {
     if (!tablePos) return null;
-    // Clamp slightly within visual court buffer
-    const x = Math.max(-20, Math.min(TABLE_WIDTH_CM + 20, tablePos.x)) * scaleX;
-    const y = Math.max(-20, Math.min(TABLE_HEIGHT_CM + 20, tablePos.y)) * scaleY;
+    const x = Math.max(-15, Math.min(TABLE_WIDTH_CM + 15, tablePos.x)) * scaleX;
+    const y = Math.max(-15, Math.min(TABLE_HEIGHT_CM + 15, tablePos.y)) * scaleY;
     return { x, y };
   };
 
   const p1Mini = toMini(p1?.tablePos);
   const p2Mini = toMini(p2?.tablePos);
 
+  // Take the most recent 20 bounces to keep map clean and responsive
+  const recentBounces = bounces.slice(-20);
+
   return (
-    <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-xl p-2.5 shadow-xl flex flex-col gap-1.5 pointer-events-auto">
+    <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/70 rounded-xl p-2.5 shadow-xl flex flex-col gap-1.5 pointer-events-auto">
       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-        <span>Peta Meja (Top-Down)</span>
-        <span className="text-[9px] text-slate-500 font-normal">perkiraan</span>
+        <span>Peta Meja & Pantulan</span>
+        <span className="text-[9px] text-slate-500 font-normal">est.</span>
       </div>
 
       <div
-        className="relative bg-blue-950/80 rounded-lg border-2 border-slate-300/80 overflow-visible shadow-inner"
+        className="relative bg-blue-950/90 rounded-lg border-2 border-slate-300/80 overflow-visible shadow-inner"
         style={{ width: `${mapWidth}px`, height: `${mapHeight}px` }}
       >
         {/* Net Line in Center (x = 137cm) */}
@@ -50,15 +54,31 @@ export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2 }) => {
           style={{ top: `${mapHeight / 2}px` }}
         />
 
-        {/* Left Side Label (P1 Zone) */}
-        <span className="absolute left-2 top-1 text-[9px] font-black text-lime-400/60 select-none">
+        {/* Zone Labels */}
+        <span className="absolute left-2 top-1 text-[9px] font-black text-lime-400/50 select-none">
           P1
         </span>
-
-        {/* Right Side Label (P2 Zone) */}
-        <span className="absolute right-2 top-1 text-[9px] font-black text-purple-400/60 select-none">
+        <span className="absolute right-2 top-1 text-[9px] font-black text-purple-400/50 select-none">
           P2
         </span>
+
+        {/* Ball Bounces (Heatmap points) */}
+        {recentBounces.map((b) => {
+          const bx = b.tableX * scaleX;
+          const by = b.tableY * scaleY;
+          const isP1Hitter = b.hitter === 'P1';
+
+          return (
+            <div
+              key={b.id}
+              className={`absolute w-2 h-2 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-sm ${
+                isP1Hitter ? 'bg-orange-400 shadow-orange-400/80' : 'bg-purple-400 shadow-purple-400/80'
+              }`}
+              style={{ left: `${bx}px`, top: `${by}px` }}
+              title={`Pantulan ${b.hitter} (${b.tableX}, ${b.tableY} cm)`}
+            />
+          );
+        })}
 
         {/* P1 Position Marker */}
         {p1Mini && (
@@ -84,7 +104,12 @@ export const MiniTableMap: React.FC<MiniTableMapProps> = ({ p1, p2 }) => {
           </div>
         )}
       </div>
+
+      {/* Footer Summary */}
+      <div className="flex items-center justify-between text-[9px] text-slate-400 px-0.5">
+        <span>Pantulan: {bounces.length}</span>
+        <span className="text-orange-400 font-mono">274×152 cm</span>
+      </div>
     </div>
   );
 };
-

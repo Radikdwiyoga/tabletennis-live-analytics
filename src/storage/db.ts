@@ -14,6 +14,12 @@ export interface SessionRecord {
     points: { x: number; y: number }[];
     homographyMatrix?: number[][];
   };
+  statsSummary?: {
+    totalShots: number;
+    longestRally: number;
+    totalBounces: number;
+    maxSpeedKmh?: number | null;
+  };
   notes?: string;
 }
 

@@ -14,7 +14,7 @@ export interface UseRecorderResult {
     settings?: CameraSettingsInfo | null,
     calibration?: CalibrationResult | null
   ) => Promise<void>;
-  stopRecording: () => Promise<string | null>;
+  stopRecording: (statsSummary?: SessionRecord['statsSummary']) => Promise<string | null>;
 }
 
 export function useRecorder(): UseRecorderResult {
@@ -75,42 +75,44 @@ export function useRecorder(): UseRecorderResult {
     }
   }, []);
 
-  const stopRecording = useCallback(async (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      const recorder = mediaRecorderRef.current;
-      const sessionId = activeSessionIdRef.current;
+  const stopRecording = useCallback(
+    async (statsSummary?: SessionRecord['statsSummary']): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const recorder = mediaRecorderRef.current;
+        const sessionId = activeSessionIdRef.current;
 
-      if (!recorder || recorder.state === 'inactive' || !sessionId) {
-        setIsRecording(false);
-        releaseWakeLock();
-        if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-        resolve(null);
-        return;
-      }
+        if (!recorder || recorder.state === 'inactive' || !sessionId) {
+          setIsRecording(false);
+          releaseWakeLock();
+          if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+          resolve(null);
+          return;
+        }
 
-      recorder.onstop = async () => {
-        const duration = Date.now() - startTimeRef.current;
-        const settings = sessionSettingsRef.current;
+        recorder.onstop = async () => {
+          const duration = Date.now() - startTimeRef.current;
+          const settings = sessionSettingsRef.current;
 
-        // Finalize session record in IndexedDB
-        const calib = sessionCalibrationRef.current;
-        const sessionRecord: SessionRecord = {
-          id: sessionId,
-          createdAt: startTimeRef.current,
-          durationMs: duration,
-          mimeType: recorder.mimeType || 'video/webm',
-          fps: settings?.frameRate || 30,
-          width: settings?.width || 1280,
-          height: settings?.height || 720,
-          totalChunks: chunkIndexRef.current,
-          sizeBytes: totalBytesRef.current,
-          calibration: calib
-            ? {
-                points: calib.imageCorners,
-                homographyMatrix: calib.homography,
-              }
-            : undefined,
-        };
+          // Finalize session record in IndexedDB
+          const calib = sessionCalibrationRef.current;
+          const sessionRecord: SessionRecord = {
+            id: sessionId,
+            createdAt: startTimeRef.current,
+            durationMs: duration,
+            mimeType: recorder.mimeType || 'video/webm',
+            fps: settings?.frameRate || 30,
+            width: settings?.width || 1280,
+            height: settings?.height || 720,
+            totalChunks: chunkIndexRef.current,
+            sizeBytes: totalBytesRef.current,
+            calibration: calib
+              ? {
+                  points: calib.imageCorners,
+                  homographyMatrix: calib.homography,
+                }
+              : undefined,
+            statsSummary,
+          };
 
         try {
           await db.sessions.put(sessionRecord);

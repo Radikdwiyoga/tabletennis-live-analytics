@@ -160,6 +160,11 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ isOpen
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
                       {session.width}x{session.height} @ {session.fps}fps
                     </span>
+                    {session.statsSummary && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/30 font-medium">
+                        {session.statsSummary.totalShots} pukulan • Best {session.statsSummary.longestRally}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-slate-400">
                     <span className="flex items-center gap-1">

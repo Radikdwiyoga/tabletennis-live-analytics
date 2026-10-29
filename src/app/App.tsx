@@ -3,6 +3,7 @@ import { CameraView } from '@/components/CameraView';
 import { useCamera } from '@/components/useCamera';
 import { useRecorder } from '@/components/useRecorder';
 import { usePoseTracker } from '@/components/usePoseTracker';
+import { useBallTracker } from '@/components/useBallTracker';
 import { RecordControl } from '@/components/RecordControl';
 import { SessionHistoryModal } from '@/components/SessionHistoryModal';
 import { CalibrationOverlay } from '@/components/CalibrationOverlay';
@@ -22,12 +23,16 @@ export function App() {
   // Real-time pose tracking (F4) in Web Worker
   const pose = usePoseTracker(camera.videoRef, activeCalibration);
 
+  // Real-time ball & rally tracking (F7, F8, F9) in Web Worker
+  const ball = useBallTracker(camera.videoRef, activeCalibration);
+
   const handleStartRecord = async () => {
     if (!camera.stream) {
       alert('Kamera belum siap.');
       return;
     }
     try {
+      ball.resetRallyStats();
       await recorder.startRecording(camera.stream, camera.settings, activeCalibration);
     } catch (err) {
       console.error('Gagal memulai perekaman:', err);
@@ -37,7 +42,12 @@ export function App() {
 
   const handleStopRecord = async () => {
     try {
-      const sessionId = await recorder.stopRecording();
+      const sessionId = await recorder.stopRecording({
+        totalShots: ball.rallyStats.totalShots,
+        longestRally: ball.rallyStats.longestRallyShots,
+        totalBounces: ball.rallyStats.bounces.length,
+        maxSpeedKmh: ball.rallyStats.lastSpeedKmh,
+      });
       if (sessionId) {
         setSavedNotification('Sesi berhasil direkam dan disimpan ke IndexedDB!');
         setTimeout(() => setSavedNotification(null), 4000);
@@ -61,7 +71,7 @@ export function App() {
                 TableTennis Live
               </h1>
               <span className="text-[10px] text-orange-400 font-medium tracking-wider uppercase">
-                Analytics MVP
+                Analytics Full MVP
               </span>
             </div>
           </div>
@@ -74,7 +84,7 @@ export function App() {
             )}
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700/50 text-slate-300">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Privasi di Perangkat</span>
+              <span>Privasi Penuh di Perangkat</span>
             </span>
           </div>
         </div>
@@ -99,6 +109,11 @@ export function App() {
                 <ReelOverlayHUD
                   p1={pose.p1}
                   p2={pose.p2}
+                  currentBall={ball.currentBall}
+                  trajectory={ball.trajectory}
+                  rallyStats={ball.rallyStats}
+                  colorProfile={ball.colorProfile}
+                  onColorProfileChange={ball.setColorProfile}
                   metrics={pose.metrics}
                   videoRef={camera.videoRef}
                   sessionDurationFormatted={formatDuration(recorder.recordingDurationMs)}
@@ -133,10 +148,10 @@ export function App() {
             </div>
             <div>
               <p className="font-medium text-slate-200">
-                Fase 1 & Fase 2: Tracking Pose P1 & P2 (MediaPipe Lite) & Reel HUD Aktif
+                Sistem Analisis Lengkap Aktif: Pose Pemain (P1/P2), Jejak Bola, Hitungan Pukulan, & Peta Meja
               </p>
               <p className="text-slate-400">
-                Deteksi pose pemain berjalan di Web Worker untuk menjaga fluiditas 25+ fps. Label P1 (hijau) & P2 (ungu) dipetakan otomatis ke sisi meja dan ditampilkan pada peta meja mini.
+                Seluruh pemrosesan (Pose Landmarker & Ball Motion Tracking) berjalan secara asinkron di Web Worker tanpa membebani antarmuka pengguna.
               </p>
             </div>
           </div>
