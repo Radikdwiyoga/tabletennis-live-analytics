@@ -7,7 +7,17 @@ import {
   resetMatch,
 } from '@/lib/score';
 import { MatchMode } from '@/lib/playerTracker';
-import { RotateCcw, ChevronUp, ChevronDown, Trophy, CircleDot, Play } from 'lucide-react';
+import { generateScoreAnnouncement, announceVoice } from '@/lib/scoreVoice';
+import {
+  RotateCcw,
+  ChevronUp,
+  ChevronDown,
+  Trophy,
+  CircleDot,
+  Play,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
 interface LiveScoreboardProps {
   scoreState: MatchScoreState;
@@ -21,31 +31,45 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
   matchMode,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(true);
+
+  const teamALabel = matchMode === 'doubles' ? 'Tim A' : 'P1';
+  const teamBLabel = matchMode === 'doubles' ? 'Tim B' : 'P2';
 
   const handleAddPointA = () => {
-    onScoreChange(addPoint(scoreState, 'A'));
+    const nextState = addPoint(scoreState, 'A');
+    onScoreChange(nextState);
+    const speech = generateScoreAnnouncement(nextState, teamALabel, teamBLabel);
+    announceVoice(speech, isVoiceEnabled);
   };
 
   const handleAddPointB = () => {
-    onScoreChange(addPoint(scoreState, 'B'));
+    const nextState = addPoint(scoreState, 'B');
+    onScoreChange(nextState);
+    const speech = generateScoreAnnouncement(nextState, teamALabel, teamBLabel);
+    announceVoice(speech, isVoiceEnabled);
   };
 
   const handleUndo = () => {
-    onScoreChange(undoPoint(scoreState));
+    const nextState = undoPoint(scoreState);
+    onScoreChange(nextState);
+    const speech = generateScoreAnnouncement(nextState, teamALabel, teamBLabel);
+    announceVoice(speech, isVoiceEnabled);
   };
 
   const handleReset = () => {
     if (confirm('Reset skor pertandingan kembali ke 0-0?')) {
-      onScoreChange(resetMatch(scoreState));
+      const nextState = resetMatch(scoreState);
+      onScoreChange(nextState);
+      announceVoice('Pertandingan di-reset, nol sama.', isVoiceEnabled);
     }
   };
 
   const handleNextSet = () => {
-    onScoreChange(startNextSet(scoreState));
+    const nextState = startNextSet(scoreState);
+    onScoreChange(nextState);
+    announceVoice(`Memulai Set ${nextState.currentSet}, nol sama.`, isVoiceEnabled);
   };
-
-  const teamALabel = matchMode === 'doubles' ? 'Tim A (P1+P3)' : 'P1 (Kiri)';
-  const teamBLabel = matchMode === 'doubles' ? 'Tim B (P2+P4)' : 'P2 (Kanan)';
 
   return (
     <div className="flex flex-col items-center pointer-events-auto select-none">
@@ -90,6 +114,17 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Voice Mute / Unmute Button */}
+            <button
+              onClick={() => setIsVoiceEnabled((prev) => !prev)}
+              className={`p-1 rounded transition ${
+                isVoiceEnabled ? 'text-orange-400 hover:text-orange-300' : 'text-slate-500 hover:text-slate-400'
+              }`}
+              title={isVoiceEnabled ? 'Suara Skor Aktif (Klik untuk Mute)' : 'Suara Skor Mati (Klik untuk Aktifkan)'}
+            >
+              {isVoiceEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            </button>
+
             <button
               onClick={handleUndo}
               disabled={scoreState.history.length === 0}
