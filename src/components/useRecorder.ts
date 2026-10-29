@@ -2,13 +2,18 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { db, SessionRecord } from '@/storage/db';
 import { getOptimalMimeType, generateSessionId } from '@/lib/recorder';
 import { CameraSettingsInfo } from '@/lib/camera';
+import { CalibrationResult } from '@/lib/homography';
 
 export interface UseRecorderResult {
   isRecording: boolean;
   recordingDurationMs: number;
   currentSessionId: string | null;
   storageEstimate: { quota: number; usage: number; percentage: number } | null;
-  startRecording: (stream: MediaStream, settings?: CameraSettingsInfo | null) => Promise<void>;
+  startRecording: (
+    stream: MediaStream,
+    settings?: CameraSettingsInfo | null,
+    calibration?: CalibrationResult | null
+  ) => Promise<void>;
   stopRecording: () => Promise<string | null>;
 }
 
@@ -30,6 +35,7 @@ export function useRecorder(): UseRecorderResult {
   const totalBytesRef = useRef<number>(0);
   const activeSessionIdRef = useRef<string | null>(null);
   const sessionSettingsRef = useRef<CameraSettingsInfo | null>(null);
+  const sessionCalibrationRef = useRef<CalibrationResult | null>(null);
 
   // Check storage estimate periodically
   const checkStorage = useCallback(async () => {
@@ -87,6 +93,7 @@ export function useRecorder(): UseRecorderResult {
         const settings = sessionSettingsRef.current;
 
         // Finalize session record in IndexedDB
+        const calib = sessionCalibrationRef.current;
         const sessionRecord: SessionRecord = {
           id: sessionId,
           createdAt: startTimeRef.current,
@@ -97,6 +104,12 @@ export function useRecorder(): UseRecorderResult {
           height: settings?.height || 720,
           totalChunks: chunkIndexRef.current,
           sizeBytes: totalBytesRef.current,
+          calibration: calib
+            ? {
+                points: calib.imageCorners,
+                homographyMatrix: calib.homography,
+              }
+            : undefined,
         };
 
         try {
@@ -130,7 +143,11 @@ export function useRecorder(): UseRecorderResult {
   }, [releaseWakeLock, checkStorage]);
 
   const startRecording = useCallback(
-    async (stream: MediaStream, settings?: CameraSettingsInfo | null) => {
+    async (
+      stream: MediaStream,
+      settings?: CameraSettingsInfo | null,
+      calibration?: CalibrationResult | null
+    ) => {
       if (!stream || stream.getVideoTracks().length === 0) {
         throw new Error('Tidak ada stream video aktif untuk direkam.');
       }
@@ -144,6 +161,7 @@ export function useRecorder(): UseRecorderResult {
       const newSessionId = generateSessionId();
       activeSessionIdRef.current = newSessionId;
       sessionSettingsRef.current = settings ?? null;
+      sessionCalibrationRef.current = calibration ?? null;
       chunkIndexRef.current = 0;
       totalBytesRef.current = 0;
       startTimeRef.current = Date.now();

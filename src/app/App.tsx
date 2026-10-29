@@ -4,6 +4,8 @@ import { useCamera } from '@/components/useCamera';
 import { useRecorder } from '@/components/useRecorder';
 import { RecordControl } from '@/components/RecordControl';
 import { SessionHistoryModal } from '@/components/SessionHistoryModal';
+import { CalibrationOverlay } from '@/components/CalibrationOverlay';
+import { CalibrationResult } from '@/lib/homography';
 import { formatDuration } from '@/lib/recorder';
 import { ShieldCheck, Video } from 'lucide-react';
 
@@ -11,6 +13,8 @@ export function App() {
   const camera = useCamera();
   const recorder = useRecorder();
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
+  const [activeCalibration, setActiveCalibration] = useState<CalibrationResult | null>(null);
   const [savedNotification, setSavedNotification] = useState<string | null>(null);
 
   const handleStartRecord = async () => {
@@ -19,7 +23,7 @@ export function App() {
       return;
     }
     try {
-      await recorder.startRecording(camera.stream, camera.settings);
+      await recorder.startRecording(camera.stream, camera.settings, activeCalibration);
     } catch (err) {
       console.error('Gagal memulai perekaman:', err);
       alert('Gagal memulai perekaman video.');
@@ -73,21 +77,32 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col gap-4">
-        {/* Camera Container with recording indicator */}
+        {/* Camera Container with recording indicator and calibration overlay */}
         <div className="flex-1 flex flex-col items-center justify-center">
           <CameraView
             camera={camera}
             isRecording={recorder.isRecording}
             recordingDurationFormatted={formatDuration(recorder.recordingDurationMs)}
+            overlayChildren={
+              <CalibrationOverlay
+                videoRef={camera.videoRef}
+                isCalibrating={isCalibrating}
+                onCalibrationChange={setActiveCalibration}
+                onCloseCalibration={() => setIsCalibrating(false)}
+              />
+            }
           />
         </div>
 
-        {/* Floating / Bottom Action Control Bar for F2 */}
+        {/* Floating / Bottom Action Control Bar for F2 & F3 */}
         <div className="w-full flex justify-center py-1">
           <RecordControl
             isRecording={recorder.isRecording}
             recordingDurationMs={recorder.recordingDurationMs}
             storageEstimate={recorder.storageEstimate}
+            isCalibrating={isCalibrating}
+            isCalibrated={!!activeCalibration}
+            onToggleCalibration={() => setIsCalibrating((prev) => !prev)}
             onStartRecord={handleStartRecord}
             onStopRecord={handleStopRecord}
             onOpenHistory={() => setIsHistoryOpen(true)}
@@ -103,10 +118,12 @@ export function App() {
             </div>
             <div>
               <p className="font-medium text-slate-200">
-                Fase 1: Kamera Live (F1) & Perekaman Sesi (F2)
+                Fase 1: Kamera (F1), Rekam (F2) & Kalibrasi Meja (F3)
               </p>
               <p className="text-slate-400">
-                Perekaman otomatis memecah video ke IndexedDB tiap 1 detik (hemat RAM) dan menjaga layar tetap menyala (Screen Wake Lock).
+                {activeCalibration
+                  ? 'Meja sudah terkalibrasi ke standar 274 × 152.5 cm. Homografi aktif untuk pemetaan pemain dan bola.'
+                  : 'Tekan "Kalibrasi" lalu ketuk 4 sudut meja fisik (kiri-dekat, kanan-dekat, kanan-jauh, kiri-jauh) untuk mengaktifkan pemetaan koordinat meja.'}
               </p>
             </div>
           </div>
