@@ -11,7 +11,7 @@ import { ReelOverlayHUD } from '@/components/ReelOverlayHUD';
 import { CalibrationResult } from '@/lib/homography';
 import { createInitialScore, MatchScoreState } from '@/lib/score';
 import { formatDuration } from '@/lib/recorder';
-import { ShieldCheck, Activity } from 'lucide-react';
+import { ShieldCheck, Activity, User, Users } from 'lucide-react';
 
 export function App() {
   const camera = useCamera();
@@ -129,6 +129,60 @@ export function App() {
               </>
             }
           />
+        </div>
+
+        {/* Quick Mode & Ball Settings Bar (Memudahkan akses di smartphone tanpa menutupi video) */}
+        <div className="w-full flex items-center justify-between sm:justify-center gap-2 px-1 text-xs">
+          {/* Match Mode Switcher */}
+          <div className="flex items-center bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-lg p-0.5 text-[10px] sm:text-xs">
+            <button
+              onClick={() => pose.setMatchMode('singles')}
+              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded font-medium transition ${
+                pose.matchMode === 'singles'
+                  ? 'bg-orange-600 text-white font-bold shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <User className="w-3 h-3" />
+              <span>Tunggal (1v1)</span>
+            </button>
+            <button
+              onClick={() => pose.setMatchMode('doubles')}
+              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded font-medium transition ${
+                pose.matchMode === 'doubles'
+                  ? 'bg-orange-600 text-white font-bold shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Users className="w-3 h-3" />
+              <span>Ganda (2v2)</span>
+            </button>
+          </div>
+
+          {/* Ball Color Profile */}
+          <div className="flex items-center gap-1 bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-lg p-1 text-[10px] sm:text-xs">
+            <span className="text-slate-400 px-1 text-[9px] sm:text-[10px]">Bola:</span>
+            <button
+              onClick={() => ball.setColorProfile({ type: 'orange' })}
+              className={`px-2 py-0.5 rounded font-medium transition ${
+                ball.colorProfile.type === 'orange'
+                  ? 'bg-orange-500 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Oranye
+            </button>
+            <button
+              onClick={() => ball.setColorProfile({ type: 'white' })}
+              className={`px-2 py-0.5 rounded font-medium transition ${
+                ball.colorProfile.type === 'white'
+                  ? 'bg-slate-200 text-slate-950 font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Putih
+            </button>
+          </div>
         </div>
 
         {/* Floating / Bottom Action Control Bar */}

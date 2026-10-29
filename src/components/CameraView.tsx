@@ -47,12 +47,12 @@ export const CameraView: React.FC<CameraViewProps> = ({
       />
 
       {/* 2. Top-Bar Camera HUD */}
-      <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none z-20">
-        <div className="flex items-center gap-2 pointer-events-auto">
+      <div className="absolute top-2 sm:top-3 inset-x-2 sm:inset-x-3 flex items-center justify-between pointer-events-none z-20">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
           {/* Live Status Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-xs font-medium text-slate-200">
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[10px] sm:text-xs font-medium text-slate-200">
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full ${
                 isRecording
                   ? 'bg-rose-500 animate-ping'
                   : !error && !isLoading
@@ -84,7 +84,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
 
         {/* Camera Controls */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
           {/* Device dropdown if multiple devices, otherwise quick switch button */}
           {availableDevices.length > 2 ? (
             <select
@@ -92,7 +92,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
               value={selectedDeviceId || ''}
               disabled={isRecording}
               onChange={(e) => selectDevice(e.target.value)}
-              className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-40"
+              className="px-2 py-0.5 sm:px-2.5 sm:py-1 max-w-[120px] sm:max-w-none rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[10px] sm:text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-40 truncate"
             >
               {availableDevices.map((d, idx) => (
                 <option key={d.deviceId || idx} value={d.deviceId} className="bg-slate-900 text-slate-200">
@@ -105,10 +105,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
               onClick={switchFacingMode}
               disabled={isRecording}
               title={`Ganti ke kamera ${facingMode === 'environment' ? 'depan' : 'belakang'}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-xs font-medium text-slate-200 transition-colors shadow-sm disabled:opacity-40"
+              className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-[10px] sm:text-xs font-medium text-slate-200 transition-colors shadow-sm disabled:opacity-40"
             >
               <SwitchCamera className="w-3.5 h-3.5 text-orange-400" />
-              <span className="hidden xs:inline">
+              <span className="hidden md:inline">
                 {facingMode === 'environment' ? 'Kamera Belakang' : 'Kamera Depan'}
               </span>
             </button>

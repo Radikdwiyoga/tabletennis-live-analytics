@@ -72,12 +72,33 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
   return (
     <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden font-sans select-none">
       {/* Live ITTF Scoreboard (Center Top) */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-auto z-30">
+      <div className="absolute top-9 sm:top-2 left-1/2 -translate-x-1/2 pointer-events-auto z-30">
         <LiveScoreboard
           scoreState={scoreState}
           onScoreChange={onScoreChange}
           matchMode={matchMode}
         />
+      </div>
+
+      {/* Mobile-Only Unified Stats Bar (Below Scoreboard) */}
+      <div className="sm:hidden absolute top-[88px] left-1/2 -translate-x-1/2 flex items-center gap-2 bg-slate-950/85 backdrop-blur-md border border-slate-800/90 rounded-full px-2.5 py-0.5 shadow-lg text-[9px] text-slate-300 pointer-events-auto z-20 whitespace-nowrap">
+        <span className="font-mono text-orange-400 font-bold">{sessionDurationFormatted}</span>
+        <span className="text-slate-600">•</span>
+        <span className="flex items-center gap-0.5 text-slate-200">
+          <Flame className="w-2.5 h-2.5 text-orange-400" />
+          <span className="font-mono font-bold text-orange-400">{rallyStats.currentRallyShots}</span>
+          <span className="text-[8px] text-slate-400 font-mono">({rallyStats.longestRallyShots})</span>
+        </span>
+        {rallyStats.lastSpeedKmh && (
+          <>
+            <span className="text-slate-600">•</span>
+            <span className="font-mono text-emerald-400 font-bold">
+              {rallyStats.lastSpeedKmh} <span className="text-[7px] text-slate-400">km/h</span>
+            </span>
+          </>
+        )}
+        <span className="text-slate-600">•</span>
+        <span className="font-mono text-blue-400 font-semibold">{metrics.inferenceFps}fps</span>
       </div>
 
       {/* 1. Ball Trajectory Trail & Current Ball Marker */}
@@ -158,8 +179,8 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         );
       })}
 
-      {/* 3. Top-Left: RALLY & Session Panel */}
-      <div className="absolute top-12 left-3 flex flex-col gap-1.5 pointer-events-auto">
+      {/* 3. Top-Left: RALLY & Session Panel (Desktop / Tablet) */}
+      <div className="hidden sm:flex absolute top-12 left-3 flex-col gap-1.5 pointer-events-auto">
         <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-xl px-3 py-2 shadow-xl flex items-center gap-3">
           <div>
             <div className="text-[9px] uppercase font-bold tracking-widest text-orange-400">
@@ -193,8 +214,8 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         )}
       </div>
 
-      {/* 4. Top-Right: SHOT COUNT, SPEED & MODE Switcher */}
-      <div className="absolute top-12 right-3 flex flex-col items-end gap-1.5 pointer-events-auto">
+      {/* 4. Top-Right: SHOT COUNT, SPEED & MODE Switcher (Desktop / Tablet) */}
+      <div className="hidden sm:flex absolute top-12 right-3 flex-col items-end gap-1.5 pointer-events-auto">
         <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-xl px-3.5 py-2 shadow-xl flex items-center gap-3">
           {/* Rally Shot Count */}
           <div className="flex flex-col items-center">
@@ -292,7 +313,35 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
       </div>
 
       {/* 5. Bottom-Left: Players Status Panel */}
-      <div className="absolute bottom-3 left-3 pointer-events-auto flex flex-col gap-1">
+      {/* Mobile-Only Compact Players Pill */}
+      <div className="sm:hidden absolute bottom-2 left-2 pointer-events-auto">
+        <div className="bg-slate-950/85 backdrop-blur-md border border-slate-800 rounded-lg px-2 py-1 shadow-lg flex items-center gap-2 text-[9px]">
+          <span className="flex items-center gap-1 font-bold text-slate-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-lime-400" />
+            <span>P1{players.P1 ? ` ${(players.P1.confidence * 100).toFixed(0)}%` : ''}</span>
+          </span>
+          {matchMode === 'doubles' && (
+            <span className="flex items-center gap-1 font-bold text-slate-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              <span>P3</span>
+            </span>
+          )}
+          <span className="text-slate-600">|</span>
+          <span className="flex items-center gap-1 font-bold text-slate-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+            <span>P2{players.P2 ? ` ${(players.P2.confidence * 100).toFixed(0)}%` : ''}</span>
+          </span>
+          {matchMode === 'doubles' && (
+            <span className="flex items-center gap-1 font-bold text-slate-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span>P4</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Full Players Panel */}
+      <div className="hidden sm:flex absolute bottom-3 left-3 pointer-events-auto flex-col gap-1">
         <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-xl p-2.5 shadow-xl flex items-center gap-3 text-xs">
           {/* Team A (P1, P3) */}
           <div className="flex flex-col gap-1">
@@ -341,7 +390,7 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
       </div>
 
       {/* 6. Bottom-Right: Top-Down Table Miniature Map */}
-      <div className="absolute bottom-3 right-3 pointer-events-auto">
+      <div className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 pointer-events-auto">
         <MiniTableMap players={players} bounces={rallyStats.bounces} />
       </div>
     </div>
