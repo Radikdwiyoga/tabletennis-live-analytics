@@ -68,3 +68,4 @@ describe('camera pure utilities', () => {
     expect(info.label).toBe('Back Camera HD');
   });
 });
+

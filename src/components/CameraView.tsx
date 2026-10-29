@@ -1,13 +1,23 @@
 import React from 'react';
 import { Camera, SwitchCamera, AlertTriangle, RefreshCw, Video } from 'lucide-react';
-import { useCamera } from './useCamera';
+import { useCamera, UseCameraResult } from './useCamera';
 
 interface CameraViewProps {
-  onStreamReady?: (stream: MediaStream) => void;
+  camera?: UseCameraResult;
+  isRecording?: boolean;
+  recordingDurationFormatted?: string;
   overlayChildren?: React.ReactNode;
 }
 
-export const CameraView: React.FC<CameraViewProps> = ({ overlayChildren }) => {
+export const CameraView: React.FC<CameraViewProps> = ({
+  camera: externalCamera,
+  isRecording = false,
+  recordingDurationFormatted,
+  overlayChildren,
+}) => {
+  const internalCamera = useCamera();
+  const camera = externalCamera || internalCamera;
+
   const {
     videoRef,
     settings,
@@ -19,10 +29,14 @@ export const CameraView: React.FC<CameraViewProps> = ({ overlayChildren }) => {
     switchFacingMode,
     selectDevice,
     retry,
-  } = useCamera();
+  } = camera;
 
   return (
-    <div className="relative w-full h-full min-h-[480px] max-h-[85vh] bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center">
+    <div
+      className={`relative w-full h-full min-h-[440px] max-h-[80vh] bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border transition-all duration-300 flex items-center justify-center ${
+        isRecording ? 'border-rose-500/80 ring-2 ring-rose-500/20' : 'border-slate-800'
+      }`}
+    >
       {/* 1. Video Element (playsInline is vital for iOS Safari) */}
       <video
         ref={videoRef}
@@ -39,10 +53,22 @@ export const CameraView: React.FC<CameraViewProps> = ({ overlayChildren }) => {
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-xs font-medium text-slate-200">
             <span
               className={`w-2 h-2 rounded-full ${
-                !error && !isLoading ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                isRecording
+                  ? 'bg-rose-500 animate-ping'
+                  : !error && !isLoading
+                  ? 'bg-emerald-500 animate-pulse'
+                  : 'bg-amber-500'
               }`}
             />
-            <span>{isLoading ? 'Menghubungkan...' : error ? 'Kamera Mati' : 'LIVE'}</span>
+            <span>
+              {isLoading
+                ? 'Menghubungkan...'
+                : error
+                ? 'Kamera Mati'
+                : isRecording
+                ? `REC ${recordingDurationFormatted || ''}`
+                : 'LIVE'}
+            </span>
           </div>
 
           {/* Actual Resolution & FPS Info */}
@@ -64,8 +90,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ overlayChildren }) => {
             <select
               aria-label="Pilih Perangkat Kamera"
               value={selectedDeviceId || ''}
+              disabled={isRecording}
               onChange={(e) => selectDevice(e.target.value)}
-              className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-40"
             >
               {availableDevices.map((d, idx) => (
                 <option key={d.deviceId || idx} value={d.deviceId} className="bg-slate-900 text-slate-200">
@@ -76,8 +103,9 @@ export const CameraView: React.FC<CameraViewProps> = ({ overlayChildren }) => {
           ) : (
             <button
               onClick={switchFacingMode}
+              disabled={isRecording}
               title={`Ganti ke kamera ${facingMode === 'environment' ? 'depan' : 'belakang'}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-xs font-medium text-slate-200 transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-xs font-medium text-slate-200 transition-colors shadow-sm disabled:opacity-40"
             >
               <SwitchCamera className="w-3.5 h-3.5 text-orange-400" />
               <span className="hidden xs:inline">

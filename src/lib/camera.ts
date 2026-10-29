@@ -118,3 +118,4 @@ export function formatCameraError(error: unknown): CameraErrorState {
     isPermissionDenied: false,
   };
 }
+

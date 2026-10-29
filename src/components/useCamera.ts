@@ -139,3 +139,4 @@ export function useCamera(): UseCameraResult {
     stopCamera,
   };
 }
+
