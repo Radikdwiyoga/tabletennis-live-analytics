@@ -5,3 +5,5 @@ test-clips/*
 *.mp4
 *.webm
 .env
+
+.vercel
