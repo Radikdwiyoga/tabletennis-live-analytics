@@ -1,0 +1,7 @@
+node_modules
+dist
+test-clips/*
+!test-clips/README.md
+*.mp4
+*.webm
+.env
