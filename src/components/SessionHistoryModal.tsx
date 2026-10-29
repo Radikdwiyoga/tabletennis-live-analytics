@@ -161,9 +161,16 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ isOpen
                       {session.width}x{session.height} @ {session.fps}fps
                     </span>
                     {session.statsSummary && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/30 font-medium">
-                        {session.statsSummary.totalShots} pukulan • Best {session.statsSummary.longestRally}
-                      </span>
+                      <>
+                        {session.statsSummary.finalScore && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">
+                            Skor: {session.statsSummary.finalScore}
+                          </span>
+                        )}
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/30 font-medium">
+                          {session.statsSummary.totalShots} pukulan • Best {session.statsSummary.longestRally}
+                        </span>
+                      </>
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-slate-400">

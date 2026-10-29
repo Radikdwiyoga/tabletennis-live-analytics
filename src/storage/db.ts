@@ -19,6 +19,7 @@ export interface SessionRecord {
     longestRally: number;
     totalBounces: number;
     maxSpeedKmh?: number | null;
+    finalScore?: string;
   };
   notes?: string;
 }

@@ -6,6 +6,8 @@ import { RallyStats } from '@/lib/rally';
 import { TrajectoryPoint } from './useBallTracker';
 import { Point2D } from '@/lib/homography';
 import { BallColorProfile } from '@/workers/ball.worker';
+import { MatchScoreState } from '@/lib/score';
+import { LiveScoreboard } from './LiveScoreboard';
 import { Gauge, Zap, Flame, Users, User } from 'lucide-react';
 
 interface ReelOverlayHUDProps {
@@ -17,6 +19,8 @@ interface ReelOverlayHUDProps {
   onColorProfileChange: (p: BallColorProfile) => void;
   matchMode: MatchMode;
   onMatchModeChange: (mode: MatchMode) => void;
+  scoreState: MatchScoreState;
+  onScoreChange: (score: MatchScoreState) => void;
   metrics: PoseTrackerMetrics;
   videoRef: React.RefObject<HTMLVideoElement>;
   sessionDurationFormatted?: string;
@@ -39,6 +43,8 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
   onColorProfileChange,
   matchMode,
   onMatchModeChange,
+  scoreState,
+  onScoreChange,
   metrics,
   videoRef,
   sessionDurationFormatted = '00:00',
@@ -65,6 +71,15 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden font-sans select-none">
+      {/* Live ITTF Scoreboard (Center Top) */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-auto z-30">
+        <LiveScoreboard
+          scoreState={scoreState}
+          onScoreChange={onScoreChange}
+          matchMode={matchMode}
+        />
+      </div>
+
       {/* 1. Ball Trajectory Trail & Current Ball Marker */}
       <svg
         viewBox={`0 0 ${vWidth} ${vHeight}`}

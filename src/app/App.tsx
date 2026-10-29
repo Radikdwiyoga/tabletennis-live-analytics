@@ -9,6 +9,7 @@ import { SessionHistoryModal } from '@/components/SessionHistoryModal';
 import { CalibrationOverlay } from '@/components/CalibrationOverlay';
 import { ReelOverlayHUD } from '@/components/ReelOverlayHUD';
 import { CalibrationResult } from '@/lib/homography';
+import { createInitialScore, MatchScoreState } from '@/lib/score';
 import { formatDuration } from '@/lib/recorder';
 import { ShieldCheck, Activity } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export function App() {
   const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
   const [activeCalibration, setActiveCalibration] = useState<CalibrationResult | null>(null);
   const [savedNotification, setSavedNotification] = useState<string | null>(null);
+  const [scoreState, setScoreState] = useState<MatchScoreState>(() => createInitialScore(11, 'A'));
 
   // Real-time pose tracking (F4) in Web Worker
   const pose = usePoseTracker(camera.videoRef, activeCalibration);
@@ -42,11 +44,13 @@ export function App() {
 
   const handleStopRecord = async () => {
     try {
+      const finalScoreStr = `${scoreState.teamAScore}-${scoreState.teamBScore} (Sets ${scoreState.teamASets}-${scoreState.teamBSets})`;
       const sessionId = await recorder.stopRecording({
         totalShots: ball.rallyStats.totalShots,
         longestRally: ball.rallyStats.longestRallyShots,
         totalBounces: ball.rallyStats.bounces.length,
         maxSpeedKmh: ball.rallyStats.lastSpeedKmh,
+        finalScore: finalScoreStr,
       });
       if (sessionId) {
         setSavedNotification('Sesi berhasil direkam dan disimpan ke IndexedDB!');
@@ -115,6 +119,8 @@ export function App() {
                   onColorProfileChange={ball.setColorProfile}
                   matchMode={pose.matchMode}
                   onMatchModeChange={pose.setMatchMode}
+                  scoreState={scoreState}
+                  onScoreChange={setScoreState}
                   metrics={pose.metrics}
                   videoRef={camera.videoRef}
                   sessionDurationFormatted={formatDuration(recorder.recordingDurationMs)}
