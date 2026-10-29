@@ -5,6 +5,7 @@ import {
   undoPoint,
   startNextSet,
   resetMatch,
+  setTargetPoints,
 } from '@/lib/score';
 import { MatchMode } from '@/lib/playerTracker';
 import { generateScoreAnnouncement, announceVoice } from '@/lib/scoreVoice';
@@ -106,6 +107,31 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
             <span className="text-slate-400">
               Sets: {scoreState.teamASets} - {scoreState.teamBSets}
             </span>
+            {/* Target Points Selector (11 vs 21) */}
+            <div className="flex items-center bg-slate-900 border border-slate-800 rounded p-0.5 text-[8px] font-bold ml-1">
+              <button
+                onClick={() => onScoreChange(setTargetPoints(scoreState, 11))}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  scoreState.targetPoints === 11
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Sistem 11 Poin (Servis ganti tiap 2 poin)"
+              >
+                11 pt
+              </button>
+              <button
+                onClick={() => onScoreChange(setTargetPoints(scoreState, 21))}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  scoreState.targetPoints === 21
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Sistem Klasik 21 Poin (Servis ganti tiap 5 poin)"
+              >
+                21 pt
+              </button>
+            </div>
             {scoreState.isDeuce && (
               <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 font-black">
                 DEUCE
