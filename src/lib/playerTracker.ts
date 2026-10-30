@@ -3,14 +3,18 @@ import { PointOneEuroFilter } from './oneEuroFilter';
 
 export type PlayerId = 'P1' | 'P2' | 'P3' | 'P4';
 export type MatchMode = 'singles' | 'doubles';
+export type StrokeGesture = 'forehand' | 'backhand' | 'ready' | 'neutral';
 
 export interface PlayerFrame {
   id: PlayerId;
   hip: Point2D;
   wrists: [Point2D, Point2D];
+  shoulders: [Point2D, Point2D];
+  elbows: [Point2D, Point2D];
   tablePos?: Point2D;
   confidence: number;
   t: number;
+  gesture: StrokeGesture;
 }
 
 export interface RawPoseLandmark {
@@ -25,6 +29,10 @@ export interface RawPose {
 }
 
 // MediaPipe 33 pose landmark indices
+export const LANDMARK_LEFT_SHOULDER = 11;
+export const LANDMARK_RIGHT_SHOULDER = 12;
+export const LANDMARK_LEFT_ELBOW = 13;
+export const LANDMARK_RIGHT_ELBOW = 14;
 export const LANDMARK_LEFT_WRIST = 15;
 export const LANDMARK_RIGHT_WRIST = 16;
 export const LANDMARK_LEFT_HIP = 23;
@@ -35,8 +43,17 @@ interface PlayerSlot {
   hipFilter: PointOneEuroFilter;
   lWristFilter: PointOneEuroFilter;
   rWristFilter: PointOneEuroFilter;
+  lShoulderFilter: PointOneEuroFilter;
+  rShoulderFilter: PointOneEuroFilter;
+  lElbowFilter: PointOneEuroFilter;
+  rElbowFilter: PointOneEuroFilter;
   lastFrame: PlayerFrame | null;
   lostFrames: number;
+  currentGesture: StrokeGesture;
+  gestureHoldUntilMs: number;
+  lastRWristPos: Point2D | null;
+  lastLWristPos: Point2D | null;
+  lastWristTimeMs: number;
 }
 
 export class PlayerTracker {
@@ -62,8 +79,17 @@ export class PlayerTracker {
       hipFilter: new PointOneEuroFilter(1.2, 0.005),
       lWristFilter: new PointOneEuroFilter(1.5, 0.008),
       rWristFilter: new PointOneEuroFilter(1.5, 0.008),
+      lShoulderFilter: new PointOneEuroFilter(1.2, 0.005),
+      rShoulderFilter: new PointOneEuroFilter(1.2, 0.005),
+      lElbowFilter: new PointOneEuroFilter(1.5, 0.008),
+      rElbowFilter: new PointOneEuroFilter(1.5, 0.008),
       lastFrame: null,
       lostFrames: 0,
+      currentGesture: 'neutral',
+      gestureHoldUntilMs: 0,
+      lastRWristPos: null,
+      lastLWristPos: null,
+      lastWristTimeMs: 0,
     };
   }
 
@@ -84,8 +110,17 @@ export class PlayerTracker {
       slot.hipFilter.reset();
       slot.lWristFilter.reset();
       slot.rWristFilter.reset();
+      slot.lShoulderFilter.reset();
+      slot.rShoulderFilter.reset();
+      slot.lElbowFilter.reset();
+      slot.rElbowFilter.reset();
       slot.lastFrame = null;
       slot.lostFrames = 0;
+      slot.currentGesture = 'neutral';
+      slot.gestureHoldUntilMs = 0;
+      slot.lastRWristPos = null;
+      slot.lastLWristPos = null;
+      slot.lastWristTimeMs = 0;
     });
   }
 
@@ -131,6 +166,10 @@ export class PlayerTracker {
       hip: Point2D;
       leftWrist: Point2D;
       rightWrist: Point2D;
+      leftShoulder: Point2D;
+      rightShoulder: Point2D;
+      leftElbow: Point2D;
+      rightElbow: Point2D;
       confidence: number;
       tablePos?: Point2D;
       centerX: number;
@@ -147,6 +186,10 @@ export class PlayerTracker {
       const rHip = lm[LANDMARK_RIGHT_HIP]!;
       const lWrist = lm[LANDMARK_LEFT_WRIST]!;
       const rWrist = lm[LANDMARK_RIGHT_WRIST]!;
+      const lShoulder = lm[LANDMARK_LEFT_SHOULDER] ?? lHip;
+      const rShoulder = lm[LANDMARK_RIGHT_SHOULDER] ?? rHip;
+      const lElbow = lm[LANDMARK_LEFT_ELBOW] ?? lWrist;
+      const rElbow = lm[LANDMARK_RIGHT_ELBOW] ?? rWrist;
 
       const hipImg: Point2D = {
         x: ((lHip.x + rHip.x) / 2) * frameWidth,
@@ -164,6 +207,22 @@ export class PlayerTracker {
       const rightWristImg: Point2D = {
         x: rWrist.x * frameWidth,
         y: rWrist.y * frameHeight,
+      };
+      const leftShoulderImg: Point2D = {
+        x: lShoulder.x * frameWidth,
+        y: lShoulder.y * frameHeight,
+      };
+      const rightShoulderImg: Point2D = {
+        x: rShoulder.x * frameWidth,
+        y: rShoulder.y * frameHeight,
+      };
+      const leftElbowImg: Point2D = {
+        x: lElbow.x * frameWidth,
+        y: lElbow.y * frameHeight,
+      };
+      const rightElbowImg: Point2D = {
+        x: rElbow.x * frameWidth,
+        y: rElbow.y * frameHeight,
       };
 
       const hipConf = ((lHip.visibility ?? 0.8) + (rHip.visibility ?? 0.8)) / 2;
@@ -184,6 +243,10 @@ export class PlayerTracker {
         hip: hipImg,
         leftWrist: leftWristImg,
         rightWrist: rightWristImg,
+        leftShoulder: leftShoulderImg,
+        rightShoulder: rightShoulderImg,
+        leftElbow: leftElbowImg,
+        rightElbow: rightElbowImg,
         confidence: hipConf,
         tablePos,
         centerX,
@@ -345,14 +408,66 @@ export class PlayerTracker {
       const smoothedHip = slot.hipFilter.filter(candidate.hip, timestampMs);
       const smoothedLWrist = slot.lWristFilter.filter(candidate.leftWrist, timestampMs);
       const smoothedRWrist = slot.rWristFilter.filter(candidate.rightWrist, timestampMs);
+      const smoothedLShoulder = slot.lShoulderFilter.filter(candidate.leftShoulder, timestampMs);
+      const smoothedRShoulder = slot.rShoulderFilter.filter(candidate.rightShoulder, timestampMs);
+      const smoothedLElbow = slot.lElbowFilter.filter(candidate.leftElbow, timestampMs);
+      const smoothedRElbow = slot.rElbowFilter.filter(candidate.rightElbow, timestampMs);
+
+      // Gesture estimation: Track swing velocity and direction
+      let gesture: StrokeGesture = slot.currentGesture;
+      const dt = slot.lastWristTimeMs > 0 ? (timestampMs - slot.lastWristTimeMs) / 1000 : 0;
+
+      if (dt > 0.01 && dt < 0.25 && slot.lastRWristPos && slot.lastLWristPos) {
+        const vxR = (candidate.rightWrist.x - slot.lastRWristPos.x) / dt;
+        const vyR = (candidate.rightWrist.y - slot.lastRWristPos.y) / dt;
+        const speedR = Math.hypot(vxR, vyR);
+
+        const vxL = (candidate.leftWrist.x - slot.lastLWristPos.x) / dt;
+        const vyL = (candidate.leftWrist.y - slot.lastLWristPos.y) / dt;
+        const speedL = Math.hypot(vxL, vyL);
+
+        const isRightHandDominant = speedR >= speedL;
+        const maxSpeed = Math.max(speedR, speedL);
+        const vx = isRightHandDominant ? vxR : vxL;
+
+        // Swing threshold: wrist moving faster than 380px/s
+        if (maxSpeed > 380) {
+          if (isRightHandDominant) {
+            // Right-handed: moving leftwards across torso = forehand, rightwards = backhand
+            gesture = vx < -80 ? 'forehand' : vx > 80 ? 'backhand' : 'neutral';
+          } else {
+            // Left-handed: moving rightwards across torso = forehand, leftwards = backhand
+            gesture = vx > 80 ? 'forehand' : vx < -80 ? 'backhand' : 'neutral';
+          }
+
+          if (gesture !== 'neutral') {
+            slot.currentGesture = gesture;
+            slot.gestureHoldUntilMs = timestampMs + 600; // Hold gesture display for 600ms
+          }
+        } else if (timestampMs > slot.gestureHoldUntilMs) {
+          // Check for ready stance (wrists raised, low speed)
+          const wristAboveHip = candidate.rightWrist.y < candidate.hip.y && candidate.leftWrist.y < candidate.hip.y;
+          slot.currentGesture = wristAboveHip && maxSpeed < 180 ? 'ready' : 'neutral';
+          gesture = slot.currentGesture;
+        } else {
+          gesture = slot.currentGesture;
+        }
+      }
+
+      slot.lastRWristPos = candidate.rightWrist;
+      slot.lastLWristPos = candidate.leftWrist;
+      slot.lastWristTimeMs = timestampMs;
 
       const frame: PlayerFrame = {
         id,
         hip: smoothedHip,
         wrists: [smoothedLWrist, smoothedRWrist],
+        shoulders: [smoothedLShoulder, smoothedRShoulder],
+        elbows: [smoothedLElbow, smoothedRElbow],
         tablePos: candidate.tablePos,
         confidence: candidate.confidence,
         t: timestampMs,
+        gesture,
       };
 
       slot.lastFrame = frame;
@@ -367,6 +482,7 @@ export class PlayerTracker {
       };
     } else {
       slot.lastFrame = null;
+      slot.currentGesture = 'neutral';
       return null;
     }
   }

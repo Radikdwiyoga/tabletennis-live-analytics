@@ -27,11 +27,14 @@ interface ReelOverlayHUDProps {
   isCalibrating: boolean;
 }
 
-const PLAYER_THEMES: Record<PlayerId, { bg: string; text: string; wristDot: string; ringColor: string }> = {
-  P1: { bg: 'bg-lime-500 shadow-lime-500/40', text: 'text-slate-950', wristDot: 'bg-lime-400', ringColor: 'text-lime-400' },
-  P3: { bg: 'bg-cyan-500 shadow-cyan-500/40', text: 'text-slate-950', wristDot: 'bg-cyan-400', ringColor: 'text-cyan-400' },
-  P2: { bg: 'bg-purple-500 shadow-purple-500/40', text: 'text-white', wristDot: 'bg-purple-400', ringColor: 'text-purple-400' },
-  P4: { bg: 'bg-amber-500 shadow-amber-500/40', text: 'text-slate-950', wristDot: 'bg-amber-400', ringColor: 'text-amber-400' },
+const PLAYER_THEMES: Record<
+  PlayerId,
+  { bg: string; text: string; wristDot: string; ringColor: string; strokeColor: string }
+> = {
+  P1: { bg: 'bg-lime-500 shadow-lime-500/40', text: 'text-slate-950', wristDot: 'bg-lime-400', ringColor: 'text-lime-400', strokeColor: '#84cc16' },
+  P3: { bg: 'bg-cyan-500 shadow-cyan-500/40', text: 'text-slate-950', wristDot: 'bg-cyan-400', ringColor: 'text-cyan-400', strokeColor: '#06b6d4' },
+  P2: { bg: 'bg-purple-500 shadow-purple-500/40', text: 'text-white', wristDot: 'bg-purple-400', ringColor: 'text-purple-400', strokeColor: '#a855f7' },
+  P4: { bg: 'bg-amber-500 shadow-amber-500/40', text: 'text-slate-950', wristDot: 'bg-amber-400', ringColor: 'text-amber-400', strokeColor: '#f59e0b' },
 };
 
 export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
@@ -101,12 +104,99 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         <span className="font-mono text-blue-400 font-semibold">{metrics.inferenceFps}fps</span>
       </div>
 
-      {/* 1. Ball Trajectory Trail & Current Ball Marker */}
+      {/* 1. Ball Trajectory Trail, Player Skeleton Limbs & Ball Marker */}
       <svg
         viewBox={`0 0 ${vWidth} ${vHeight}`}
         preserveAspectRatio="none"
         className="w-full h-full absolute inset-0 pointer-events-none"
       >
+        {/* Real-time Player Upper-body Skeleton (Gestures & Limbs) */}
+        {activePlayerIds.map((id) => {
+          const p = players[id];
+          if (!p) return null;
+          const theme = PLAYER_THEMES[id];
+          const midShoulder = {
+            x: (p.shoulders[0].x + p.shoulders[1].x) / 2,
+            y: (p.shoulders[0].y + p.shoulders[1].y) / 2,
+          };
+
+          return (
+            <g key={`skel-${id}`}>
+              {/* Torso spine */}
+              <line
+                x1={midShoulder.x}
+                y1={midShoulder.y}
+                x2={p.hip.x}
+                y2={p.hip.y}
+                stroke={theme.strokeColor}
+                strokeWidth="3"
+                strokeLinecap="round"
+                opacity="0.8"
+              />
+              {/* Shoulder bar */}
+              <line
+                x1={p.shoulders[0].x}
+                y1={p.shoulders[0].y}
+                x2={p.shoulders[1].x}
+                y2={p.shoulders[1].y}
+                stroke={theme.strokeColor}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
+              {/* Left arm: shoulder -> elbow -> wrist */}
+              <line
+                x1={p.shoulders[0].x}
+                y1={p.shoulders[0].y}
+                x2={p.elbows[0].x}
+                y2={p.elbows[0].y}
+                stroke={theme.strokeColor}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
+              <line
+                x1={p.elbows[0].x}
+                y1={p.elbows[0].y}
+                x2={p.wrists[0].x}
+                y2={p.wrists[0].y}
+                stroke={theme.strokeColor}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
+              {/* Right arm: shoulder -> elbow -> wrist */}
+              <line
+                x1={p.shoulders[1].x}
+                y1={p.shoulders[1].y}
+                x2={p.elbows[1].x}
+                y2={p.elbows[1].y}
+                stroke={theme.strokeColor}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
+              <line
+                x1={p.elbows[1].x}
+                y1={p.elbows[1].y}
+                x2={p.wrists[1].x}
+                y2={p.wrists[1].y}
+                stroke={theme.strokeColor}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                opacity="0.85"
+              />
+
+              {/* Joint Keypoint Dots */}
+              <circle cx={p.shoulders[0].x} cy={p.shoulders[0].y} r="3" fill="#ffffff" stroke={theme.strokeColor} strokeWidth="1.5" />
+              <circle cx={p.shoulders[1].x} cy={p.shoulders[1].y} r="3" fill="#ffffff" stroke={theme.strokeColor} strokeWidth="1.5" />
+              <circle cx={p.elbows[0].x} cy={p.elbows[0].y} r="3" fill="#ffffff" stroke={theme.strokeColor} strokeWidth="1.5" />
+              <circle cx={p.elbows[1].x} cy={p.elbows[1].y} r="3" fill="#ffffff" stroke={theme.strokeColor} strokeWidth="1.5" />
+            </g>
+          );
+        })}
+
+        {/* Ball Trajectory Line */}
         {trajectory.length >= 2 && (
           <polyline
             points={trajectory.map((p) => `${p.x},${p.y}`).join(' ')}
@@ -140,7 +230,7 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         )}
       </svg>
 
-      {/* 2. Floating Player Badges (P1, P2, P3, P4) */}
+      {/* 2. Floating Player Badges with Stroke Gesture Display (P1, P2, P3, P4) */}
       {activePlayerIds.map((id) => {
         const p = players[id];
         if (!p) return null;
@@ -148,7 +238,7 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
 
         return (
           <React.Fragment key={id}>
-            {/* Hip Tag */}
+            {/* Hip & Gesture Tag */}
             <div
               className="absolute -translate-x-1/2 -translate-y-full transition-all duration-75 pointer-events-none z-20"
               style={toPercent(p.hip)}
@@ -162,6 +252,24 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
                   )}
                 </div>
+
+                {/* Gesture Badge */}
+                {p.gesture && p.gesture !== 'neutral' && (
+                  <div
+                    className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shadow border whitespace-nowrap ${
+                      p.gesture === 'forehand'
+                        ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
+                        : p.gesture === 'backhand'
+                        ? 'bg-cyan-400 text-slate-950 border-cyan-300 shadow-cyan-400/40'
+                        : 'bg-slate-900/90 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    {p.gesture === 'forehand' && '⚡ Forehand'}
+                    {p.gesture === 'backhand' && '⚡ Backhand'}
+                    {p.gesture === 'ready' && 'Siap'}
+                  </div>
+                )}
+
                 <div className={`w-1.5 h-1.5 rounded-full ${theme.wristDot} border border-slate-950 shadow`} />
               </div>
             </div>

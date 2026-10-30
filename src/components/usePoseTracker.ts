@@ -49,6 +49,11 @@ export function usePoseTracker(
   const lastFpsTimeRef = useRef<number>(performance.now());
   const animFrameIdRef = useRef<number | null>(null);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const calibrationRef = useRef<CalibrationResult | null>(calibration);
+
+  useEffect(() => {
+    calibrationRef.current = calibration;
+  }, [calibration]);
 
   const setMatchMode = useCallback((newMode: MatchMode) => {
     setMatchModeState(newMode);
@@ -104,7 +109,7 @@ export function usePoseTracker(
             timestampMs,
             vWidth,
             vHeight,
-            calibration
+            calibrationRef.current
           );
 
           setPlayers(tracked);
@@ -139,7 +144,7 @@ export function usePoseTracker(
       }
       trackerRef.current.reset();
     };
-  }, [isPoseEnabled, calibration, videoRef, matchMode]);
+  }, [isPoseEnabled, videoRef]);
 
   // Frame pump loop
   const processFrame = useCallback(async () => {

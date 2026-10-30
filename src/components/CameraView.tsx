@@ -37,14 +37,34 @@ export const CameraView: React.FC<CameraViewProps> = ({
         isRecording ? 'border-rose-500/80 ring-2 ring-rose-500/20' : 'border-slate-800'
       }`}
     >
-      {/* 1. Video Element (playsInline is vital for iOS Safari) */}
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        autoPlay
-        className="w-full h-full object-contain bg-black"
-      />
+      {/* Video & Pixel-Perfect Overlay Stage */}
+      <div
+        className="relative w-full h-full flex items-center justify-center overflow-hidden"
+        style={{
+          aspectRatio:
+            settings && settings.width > 0 && settings.height > 0
+              ? `${settings.width} / ${settings.height}`
+              : undefined,
+          maxWidth: '100%',
+          maxHeight: '100%',
+        }}
+      >
+        {/* 1. Video Element (playsInline is vital for iOS Safari) */}
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className="w-full h-full object-contain bg-black block"
+        />
+
+        {/* 3. Slot for Overlay (Canvas / HUD in F3-F5) */}
+        {overlayChildren && (
+          <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
+            {overlayChildren}
+          </div>
+        )}
+      </div>
 
       {/* 2. Top-Bar Camera HUD */}
       <div className="absolute top-2 sm:top-3 inset-x-2 sm:inset-x-3 flex items-center justify-between pointer-events-none z-20">
@@ -115,13 +135,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
           )}
         </div>
       </div>
-
-      {/* 3. Slot for Overlay (Canvas / HUD in F3-F5) */}
-      {overlayChildren && (
-        <div className="absolute inset-0 pointer-events-none z-10">
-          {overlayChildren}
-        </div>
-      )}
 
       {/* 4. Loading State */}
       {isLoading && !error && (

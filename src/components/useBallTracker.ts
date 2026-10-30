@@ -45,6 +45,12 @@ export function useBallTracker(
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isWorkerBusyRef = useRef<boolean>(false);
   const animFrameIdRef = useRef<number | null>(null);
+  const missedFramesRef = useRef<number>(0);
+  const calibrationRef = useRef<CalibrationResult | null>(calibration);
+
+  useEffect(() => {
+    calibrationRef.current = calibration;
+  }, [calibration]);
 
   // Initialize Ball Worker
   useEffect(() => {
@@ -69,28 +75,39 @@ export function useBallTracker(
         let vy = 0;
 
         if (ball) {
+          missedFramesRef.current = 0;
           const measX = ball.xNorm * vWidth;
           const measY = ball.yNorm * vHeight;
 
-          // Kalman filter update
-          const { state } = kalmanRef.current.update(measX, measY);
-          smoothedBall = { x: state.x, y: state.y };
-          vx = state.vx;
-          vy = state.vy;
+          // Kalman filter: predict then update
+          kalmanRef.current.predict(timestampMs);
+          const { accepted, state } = kalmanRef.current.update(measX, measY, 140);
 
-          // Add to 1-second trajectory trail
-          setTrajectory((prev) => {
-            const cutoffTime = timestampMs - 1000;
-            const filtered = prev.filter((p) => p.t >= cutoffTime);
-            return [...filtered, { x: smoothedBall!.x, y: smoothedBall!.y, t: timestampMs }];
-          });
+          if (accepted) {
+            smoothedBall = { x: state.x, y: state.y };
+            vx = state.vx;
+            vy = state.vy;
+
+            // Add to 1-second trajectory trail
+            setTrajectory((prev) => {
+              const cutoffTime = timestampMs - 1000;
+              const filtered = prev.filter((p) => p.t >= cutoffTime);
+              return [...filtered, { x: smoothedBall!.x, y: smoothedBall!.y, t: timestampMs }];
+            });
+          }
         } else {
-          // Extrapolate with Kalman if ball was recently tracked
-          const pred = kalmanRef.current.predict(timestampMs);
-          if (Math.abs(pred.vx) > 10 || Math.abs(pred.vy) > 10) {
-            smoothedBall = { x: pred.x, y: pred.y };
-            vx = pred.vx;
-            vy = pred.vy;
+          // Missed detection: extrapolate for at most 3 frames with velocity damping
+          if (missedFramesRef.current < 3) {
+            missedFramesRef.current++;
+            const pred = kalmanRef.current.predict(timestampMs);
+            if (Math.abs(pred.vx) > 15 || Math.abs(pred.vy) > 15) {
+              smoothedBall = { x: pred.x, y: pred.y };
+              vx = pred.vx;
+              vy = pred.vy;
+            }
+          } else {
+            // Ball lost
+            smoothedBall = null;
           }
         }
 
@@ -102,7 +119,7 @@ export function useBallTracker(
           vx,
           vy,
           timestampMs,
-          calibration
+          calibrationRef.current
         );
         setRallyStats(updatedStats);
       }
@@ -114,7 +131,7 @@ export function useBallTracker(
       kalmanRef.current.reset();
       rallyRef.current.reset();
     };
-  }, [isBallTrackingEnabled, calibration, videoRef]);
+  }, [isBallTrackingEnabled, videoRef]);
 
   // Frame sampling loop for ball tracking (320x180)
   const processBallFrame = useCallback(() => {

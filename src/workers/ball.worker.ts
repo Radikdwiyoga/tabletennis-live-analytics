@@ -6,14 +6,35 @@ let prevFrameData: Uint8ClampedArray | null = null;
 let width = 320;
 let height = 180;
 
-function isBallColor(r: number, g: number, b: number, profile: BallColorProfile): boolean {
+function isBallPixel(r: number, g: number, b: number, diff: number, profile: BallColorProfile): boolean {
+  if (diff < 22) return false;
+
   if (profile.type === 'orange') {
-    // Orange ping-pong ball: High Red, Moderate Green, Low Blue
-    return r > 150 && g > 75 && b < 100 && r - b > 55 && r > g;
+    // Orange ping-pong ball: Warm hue (orange/amber), high R, low B
+    if (r < 130 || g < 55 || b > 125 || r <= g || r - b < 35) return false;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    if (delta < 20) return false;
+    const h = ((g - b) / delta) * 60;
+    return h >= 8 && h <= 58 && delta / max >= 0.30;
   } else {
-    // White ping-pong ball: High brightness across all channels
-    return r > 190 && g > 190 && b > 190 && Math.abs(r - g) < 25 && Math.abs(g - b) < 25;
+    // White ping-pong ball: High brightness across all channels, low saturation
+    if (r < 175 || g < 175 || b < 175) return false;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return max - min < 35;
   }
+}
+
+interface CellData {
+  count: number;
+  sumX: number;
+  sumY: number;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
 }
 
 self.onmessage = (e: MessageEvent) => {
@@ -26,9 +47,15 @@ self.onmessage = (e: MessageEvent) => {
   const currentData = new Uint8ClampedArray(frameData);
   const totalPixels = width * height;
 
-  let sumX = 0;
-  let sumY = 0;
-  let matchCount = 0;
+  const CELL_SIZE = 16;
+  const cols = Math.ceil(width / CELL_SIZE);
+  const rows = Math.ceil(height / CELL_SIZE);
+  const numCells = cols * rows;
+
+  const cells: CellData[] = new Array(numCells);
+  for (let c = 0; c < numCells; c++) {
+    cells[c] = { count: 0, sumX: 0, sumY: 0, minX: 999, maxX: -1, minY: 999, maxY: -1 };
+  }
 
   if (prevFrameData && prevFrameData.length === currentData.length) {
     for (let i = 0; i < totalPixels; i++) {
@@ -43,25 +70,108 @@ self.onmessage = (e: MessageEvent) => {
       const prevB = prevFrameData[idx + 2]!;
       const diff = Math.abs(r - prevR) + Math.abs(g - prevG) + Math.abs(b - prevB);
 
-      // Must have motion (diff > 25) AND match ball color profile
-      if (diff > 25 && isBallColor(r, g, b, colorProfile)) {
+      if (isBallPixel(r, g, b, diff, colorProfile)) {
         const x = i % width;
         const y = Math.floor(i / width);
-        sumX += x;
-        sumY += y;
-        matchCount++;
+        const col = Math.floor(x / CELL_SIZE);
+        const row = Math.floor(y / CELL_SIZE);
+        const cell = cells[row * cols + col]!;
+
+        cell.count++;
+        cell.sumX += x;
+        cell.sumY += y;
+        if (x < cell.minX) cell.minX = x;
+        if (x > cell.maxX) cell.maxX = x;
+        if (y < cell.minY) cell.minY = y;
+        if (y > cell.maxY) cell.maxY = y;
       }
     }
   }
 
   prevFrameData = currentData;
 
-  // Ball blob size heuristic: between 3 and 180 pixels in 320x180 resolution
+  // Find candidate clusters of ping-pong ball size (compact, 3-50 pixels)
+  interface CandidateCluster {
+    x: number;
+    y: number;
+    count: number;
+    bboxW: number;
+    bboxH: number;
+    score: number;
+  }
+
+  const candidates: CandidateCluster[] = [];
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = cells[r * cols + c]!;
+      if (cell.count < 3 || cell.count > 60) continue;
+
+      let mergedCount = cell.count;
+      let mergedSumX = cell.sumX;
+      let mergedSumY = cell.sumY;
+      let minX = cell.minX;
+      let maxX = cell.maxX;
+      let minY = cell.minY;
+      let maxY = cell.maxY;
+
+      // Merge with right neighbor if adjacent
+      if (c + 1 < cols) {
+        const rightCell = cells[r * cols + (c + 1)]!;
+        if (rightCell.count > 0 && rightCell.count < 30) {
+          mergedCount += rightCell.count;
+          mergedSumX += rightCell.sumX;
+          mergedSumY += rightCell.sumY;
+          minX = Math.min(minX, rightCell.minX);
+          maxX = Math.max(maxX, rightCell.maxX);
+          minY = Math.min(minY, rightCell.minY);
+          maxY = Math.max(maxY, rightCell.maxY);
+        }
+      }
+
+      // Merge with bottom neighbor if adjacent
+      if (r + 1 < rows) {
+        const bottomCell = cells[(r + 1) * cols + c]!;
+        if (bottomCell.count > 0 && bottomCell.count < 30) {
+          mergedCount += bottomCell.count;
+          mergedSumX += bottomCell.sumX;
+          mergedSumY += bottomCell.sumY;
+          minX = Math.min(minX, bottomCell.minX);
+          maxX = Math.max(maxX, bottomCell.maxX);
+          minY = Math.min(minY, bottomCell.minY);
+          maxY = Math.max(maxY, bottomCell.maxY);
+        }
+      }
+
+      const bboxW = maxX - minX + 1;
+      const bboxH = maxY - minY + 1;
+
+      // Ping-pong ball compactness filter: bounded box width and height <= 22px
+      if (mergedCount >= 3 && mergedCount <= 70 && bboxW <= 22 && bboxH <= 22) {
+        const aspect = bboxW / Math.max(bboxH, 1);
+        if (aspect >= 0.4 && aspect <= 2.5) {
+          const score = Math.abs(aspect - 1.0) * 10 + Math.abs(mergedCount - 16);
+          candidates.push({
+            x: mergedSumX / mergedCount,
+            y: mergedSumY / mergedCount,
+            count: mergedCount,
+            bboxW,
+            bboxH,
+            score,
+          });
+        }
+      }
+    }
+  }
+
   let detectedBall: { xNorm: number; yNorm: number } | null = null;
-  if (matchCount >= 3 && matchCount <= 180) {
+  if (candidates.length > 0) {
+    // Pick candidate with best circular compactness score
+    candidates.sort((a, b) => a.score - b.score);
+    const best = candidates[0]!;
     detectedBall = {
-      xNorm: sumX / matchCount / width,
-      yNorm: sumY / matchCount / height,
+      xNorm: best.x / width,
+      yNorm: best.y / height,
     };
   }
 
