@@ -8,6 +8,7 @@ import { RecordControl } from '@/components/RecordControl';
 import { SessionHistoryModal } from '@/components/SessionHistoryModal';
 import { CalibrationOverlay } from '@/components/CalibrationOverlay';
 import { ReelOverlayHUD } from '@/components/ReelOverlayHUD';
+import { LiveScoreboard } from '@/components/LiveScoreboard';
 import { CalibrationResult } from '@/lib/homography';
 import { createInitialScore, MatchScoreState } from '@/lib/score';
 import { formatDuration } from '@/lib/recorder';
@@ -128,6 +129,15 @@ export function App() {
                 />
               </>
             }
+          />
+        </div>
+
+        {/* Mobile Interactive Live Scoreboard (Clean touch controls under video, 0% video obstruction) */}
+        <div className="w-full sm:hidden flex justify-center">
+          <LiveScoreboard
+            scoreState={scoreState}
+            onScoreChange={setScoreState}
+            matchMode={pose.matchMode}
           />
         </div>
 

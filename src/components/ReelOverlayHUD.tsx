@@ -74,8 +74,8 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden font-sans select-none">
-      {/* Live ITTF Scoreboard (Center Top) */}
-      <div className="absolute top-9 sm:top-2 left-1/2 -translate-x-1/2 pointer-events-auto z-30">
+      {/* Desktop Floating Scoreboard (hidden on mobile to prevent blocking video) */}
+      <div className="hidden sm:block absolute top-2 left-1/2 -translate-x-1/2 pointer-events-auto z-30">
         <LiveScoreboard
           scoreState={scoreState}
           onScoreChange={onScoreChange}
@@ -83,25 +83,39 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         />
       </div>
 
-      {/* Mobile-Only Unified Stats Bar (Below Scoreboard) */}
-      <div className="sm:hidden absolute top-[88px] left-1/2 -translate-x-1/2 flex items-center gap-2 bg-slate-950/85 backdrop-blur-md border border-slate-800/90 rounded-full px-2.5 py-0.5 shadow-lg text-[9px] text-slate-300 pointer-events-auto z-20 whitespace-nowrap">
-        <span className="font-mono text-orange-400 font-bold">{sessionDurationFormatted}</span>
-        <span className="text-slate-600">•</span>
-        <span className="flex items-center gap-0.5 text-slate-200">
-          <Flame className="w-2.5 h-2.5 text-orange-400" />
-          <span className="font-mono font-bold text-orange-400">{rallyStats.currentRallyShots}</span>
-          <span className="text-[8px] text-slate-400 font-mono">({rallyStats.longestRallyShots})</span>
-        </span>
-        {rallyStats.lastSpeedKmh && (
-          <>
-            <span className="text-slate-600">•</span>
-            <span className="font-mono text-emerald-400 font-bold">
-              {rallyStats.lastSpeedKmh} <span className="text-[7px] text-slate-400">km/h</span>
+      {/* Mobile Top Minimalist TV Broadcast Strip (Ultra-slim, never obscures video) */}
+      <div className="sm:hidden absolute top-1.5 inset-x-2 flex items-center justify-between pointer-events-none z-30">
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-slate-800 text-[9px] text-slate-300">
+          <span className="font-mono text-orange-400 font-bold">{sessionDurationFormatted}</span>
+          <span className="text-slate-600">•</span>
+          <span className="font-mono text-blue-400 font-semibold">{metrics.inferenceFps}fps</span>
+        </div>
+
+        {/* Center Live TV Score Strip */}
+        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950/90 backdrop-blur-md border border-slate-700 shadow-md">
+          <span className="text-[9px] font-bold text-orange-400">S{scoreState.currentSet}</span>
+          <div className="flex items-center gap-1 font-mono font-black text-xs">
+            <span className="text-lime-400">P1 {scoreState.teamAScore}</span>
+            <span className="text-slate-500">:</span>
+            <span className="text-purple-400">{scoreState.teamBScore} P2</span>
+          </div>
+          {scoreState.isDeuce && (
+            <span className="px-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[7px] font-black">
+              DEUCE
             </span>
-          </>
-        )}
-        <span className="text-slate-600">•</span>
-        <span className="font-mono text-blue-400 font-semibold">{metrics.inferenceFps}fps</span>
+          )}
+        </div>
+
+        {/* Right: Rally count & Speed */}
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-slate-800 text-[9px] text-orange-400 font-bold">
+          <Flame className="w-2.5 h-2.5 text-orange-400" />
+          <span className="font-mono">{rallyStats.currentRallyShots}</span>
+          {rallyStats.lastSpeedKmh && (
+            <span className="text-[8px] text-emerald-400 font-mono pl-1 border-l border-slate-700">
+              {rallyStats.lastSpeedKmh}km/h
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 1. Ball Trajectory Trail, Player Skeleton Limbs & Ball Marker */}
@@ -230,47 +244,43 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         )}
       </svg>
 
-      {/* 2. Floating Player Badges with Stroke Gesture Display (P1, P2, P3, P4) */}
+      {/* 2. Overhead Player Badges with Stroke Gesture Display (P1, P2, P3, P4) */}
       {activePlayerIds.map((id) => {
         const p = players[id];
         if (!p) return null;
         const theme = PLAYER_THEMES[id];
 
+        // Anchor above the player's head/shoulders so it never blocks the table or ball
+        const tagPos = {
+          x: (p.shoulders[0].x + p.shoulders[1].x) / 2,
+          y: Math.min(p.shoulders[0].y, p.shoulders[1].y) - 18,
+        };
+
         return (
           <React.Fragment key={id}>
-            {/* Hip & Gesture Tag */}
+            {/* Overhead Player Tag */}
             <div
               className="absolute -translate-x-1/2 -translate-y-full transition-all duration-75 pointer-events-none z-20"
-              style={toPercent(p.hip)}
+              style={toPercent(tagPos)}
             >
-              <div className="flex flex-col items-center gap-0.5">
-                <div
-                  className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full ${theme.bg} ${theme.text} font-black text-xs shadow-lg border border-white`}
-                >
-                  <span>{id}</span>
-                  {p.confidence < 0.6 && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
-                  )}
-                </div>
-
-                {/* Gesture Badge */}
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-950/90 backdrop-blur-md border border-slate-700/80 shadow-lg whitespace-nowrap">
+                <span className={`w-2 h-2 rounded-full ${theme.wristDot}`} />
+                <span className="font-black text-[11px] text-white">{id}</span>
                 {p.gesture && p.gesture !== 'neutral' && (
-                  <div
-                    className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shadow border whitespace-nowrap ${
+                  <span
+                    className={`text-[8px] font-bold px-1 rounded uppercase tracking-wider ${
                       p.gesture === 'forehand'
-                        ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
+                        ? 'bg-amber-400 text-slate-950'
                         : p.gesture === 'backhand'
-                        ? 'bg-cyan-400 text-slate-950 border-cyan-300 shadow-cyan-400/40'
-                        : 'bg-slate-900/90 text-slate-200 border-slate-700'
+                        ? 'bg-cyan-400 text-slate-950'
+                        : 'text-slate-300'
                     }`}
                   >
-                    {p.gesture === 'forehand' && '⚡ Forehand'}
-                    {p.gesture === 'backhand' && '⚡ Backhand'}
+                    {p.gesture === 'forehand' && 'Forehand'}
+                    {p.gesture === 'backhand' && 'Backhand'}
                     {p.gesture === 'ready' && 'Siap'}
-                  </div>
+                  </span>
                 )}
-
-                <div className={`w-1.5 h-1.5 rounded-full ${theme.wristDot} border border-slate-950 shadow`} />
               </div>
             </div>
 
@@ -420,35 +430,7 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         </div>
       </div>
 
-      {/* 5. Bottom-Left: Players Status Panel */}
-      {/* Mobile-Only Compact Players Pill */}
-      <div className="sm:hidden absolute bottom-2 left-2 pointer-events-auto">
-        <div className="bg-slate-950/85 backdrop-blur-md border border-slate-800 rounded-lg px-2 py-1 shadow-lg flex items-center gap-2 text-[9px]">
-          <span className="flex items-center gap-1 font-bold text-slate-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-lime-400" />
-            <span>P1{players.P1 ? ` ${(players.P1.confidence * 100).toFixed(0)}%` : ''}</span>
-          </span>
-          {matchMode === 'doubles' && (
-            <span className="flex items-center gap-1 font-bold text-slate-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-              <span>P3</span>
-            </span>
-          )}
-          <span className="text-slate-600">|</span>
-          <span className="flex items-center gap-1 font-bold text-slate-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-            <span>P2{players.P2 ? ` ${(players.P2.confidence * 100).toFixed(0)}%` : ''}</span>
-          </span>
-          {matchMode === 'doubles' && (
-            <span className="flex items-center gap-1 font-bold text-slate-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span>P4</span>
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Desktop Full Players Panel */}
+      {/* 5. Bottom-Left: Players Status Panel (Desktop / Tablet) */}
       <div className="hidden sm:flex absolute bottom-3 left-3 pointer-events-auto flex-col gap-1">
         <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-xl p-2.5 shadow-xl flex items-center gap-3 text-xs">
           {/* Team A (P1, P3) */}
