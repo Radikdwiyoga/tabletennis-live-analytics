@@ -96,9 +96,9 @@ export function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col gap-4">
+      <main className="flex-1 max-w-6xl w-full mx-auto p-2 sm:p-4 flex flex-col gap-2.5 sm:gap-4">
         {/* Camera Container with recording indicator, calibration overlay, and Reel HUD */}
-        <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="w-full flex flex-col items-center justify-center">
           <CameraView
             camera={camera}
             isRecording={recorder.isRecording}
@@ -133,7 +133,7 @@ export function App() {
         </div>
 
         {/* Mobile Interactive Live Scoreboard (Clean touch controls under video, 0% video obstruction) */}
-        <div className="w-full sm:hidden flex justify-center">
+        <div className="w-full sm:hidden flex justify-center py-0.5">
           <LiveScoreboard
             scoreState={scoreState}
             onScoreChange={setScoreState}
@@ -142,39 +142,39 @@ export function App() {
         </div>
 
         {/* Quick Mode & Ball Settings Bar (Memudahkan akses di smartphone tanpa menutupi video) */}
-        <div className="w-full flex items-center justify-between sm:justify-center gap-2 px-1 text-xs">
+        <div className="w-full flex items-center justify-between sm:justify-center gap-1.5 sm:gap-2 px-1 text-xs">
           {/* Match Mode Switcher */}
-          <div className="flex items-center bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-lg p-0.5 text-[10px] sm:text-xs">
+          <div className="flex items-center bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-lg p-0.5 text-[9px] sm:text-xs">
             <button
               onClick={() => pose.setMatchMode('singles')}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded font-medium transition ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded font-medium transition ${
                 pose.matchMode === 'singles'
                   ? 'bg-orange-600 text-white font-bold shadow'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <User className="w-3 h-3" />
+              <User className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
               <span>Tunggal (1v1)</span>
             </button>
             <button
               onClick={() => pose.setMatchMode('doubles')}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded font-medium transition ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded font-medium transition ${
                 pose.matchMode === 'doubles'
                   ? 'bg-orange-600 text-white font-bold shadow'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Users className="w-3 h-3" />
+              <Users className="w-2.5 sm:w-3 h-2.5 sm:h-3" />
               <span>Ganda (2v2)</span>
             </button>
           </div>
 
           {/* Ball Color Profile */}
-          <div className="flex items-center gap-1 bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-lg p-1 text-[10px] sm:text-xs">
-            <span className="text-slate-400 px-1 text-[9px] sm:text-[10px]">Bola:</span>
+          <div className="flex items-center gap-1 bg-slate-900/80 backdrop-blur-sm border border-slate-800 rounded-lg p-0.5 sm:p-1 text-[9px] sm:text-xs">
+            <span className="text-slate-400 px-1 text-[8px] sm:text-[10px]">Bola:</span>
             <button
               onClick={() => ball.setColorProfile({ type: 'orange' })}
-              className={`px-2 py-0.5 rounded font-medium transition ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded font-medium transition ${
                 ball.colorProfile.type === 'orange'
                   ? 'bg-orange-500 text-white font-bold shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -184,7 +184,7 @@ export function App() {
             </button>
             <button
               onClick={() => ball.setColorProfile({ type: 'white' })}
-              className={`px-2 py-0.5 rounded font-medium transition ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded font-medium transition ${
                 ball.colorProfile.type === 'white'
                   ? 'bg-slate-200 text-slate-950 font-bold shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -196,7 +196,7 @@ export function App() {
         </div>
 
         {/* Floating / Bottom Action Control Bar */}
-        <div className="w-full flex justify-center py-1">
+        <div className="w-full flex justify-center py-0.5">
           <RecordControl
             isRecording={recorder.isRecording}
             recordingDurationMs={recorder.recordingDurationMs}

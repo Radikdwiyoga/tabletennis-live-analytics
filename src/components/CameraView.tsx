@@ -33,7 +33,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   return (
     <div
-      className={`relative w-full h-full min-h-[440px] max-h-[80vh] bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border transition-all duration-300 flex items-center justify-center ${
+      className={`relative w-full min-h-[300px] sm:min-h-[440px] max-h-[75vh] bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border transition-all duration-300 flex items-center justify-center ${
         isRecording ? 'border-rose-500/80 ring-2 ring-rose-500/20' : 'border-slate-800'
       }`}
     >

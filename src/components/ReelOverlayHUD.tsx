@@ -83,8 +83,8 @@ export const ReelOverlayHUD: React.FC<ReelOverlayHUDProps> = ({
         />
       </div>
 
-      {/* Mobile Top Minimalist TV Broadcast Strip (Ultra-slim, never obscures video) */}
-      <div className="sm:hidden absolute top-1.5 inset-x-2 flex items-center justify-between pointer-events-none z-30">
+      {/* Mobile Top Minimalist TV Broadcast Strip (positioned below Camera Bar at top-10, avoiding overlaps) */}
+      <div className="sm:hidden absolute top-10 inset-x-2 flex items-center justify-between pointer-events-none z-20">
         <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-slate-800 text-[9px] text-slate-300">
           <span className="font-mono text-orange-400 font-bold">{sessionDurationFormatted}</span>
           <span className="text-slate-600">•</span>
