@@ -8,12 +8,17 @@ async function initLandmarker(): Promise<void> {
   isInitializing = true;
 
   try {
-    const vision = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
-    );
+    const origin = typeof self !== 'undefined' && self.location ? self.location.origin : '';
+    let vision;
+    try {
+      vision = await FilesetResolver.forVisionTasks(`${origin}/mediapipe/wasm`);
+    } catch {
+      vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm'
+      );
+    }
 
-    const modelAssetPath =
-      'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+    const modelAssetPath = `${origin}/mediapipe/models/pose_landmarker_lite.task`;
 
     try {
       landmarker = await PoseLandmarker.createFromOptions(vision, {
@@ -23,9 +28,9 @@ async function initLandmarker(): Promise<void> {
         },
         runningMode: 'VIDEO',
         numPoses: 2,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minPoseDetectionConfidence: 0.35,
+        minPosePresenceConfidence: 0.35,
+        minTrackingConfidence: 0.35,
       });
       self.postMessage({ type: 'READY', delegate: 'GPU' });
     } catch (gpuErr) {
@@ -37,9 +42,9 @@ async function initLandmarker(): Promise<void> {
         },
         runningMode: 'VIDEO',
         numPoses: 2,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minPoseDetectionConfidence: 0.35,
+        minPosePresenceConfidence: 0.35,
+        minTrackingConfidence: 0.35,
       });
       self.postMessage({ type: 'READY', delegate: 'CPU' });
     }

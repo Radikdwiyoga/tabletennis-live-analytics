@@ -7,23 +7,24 @@ let width = 320;
 let height = 180;
 
 function isBallPixel(r: number, g: number, b: number, diff: number, profile: BallColorProfile): boolean {
-  if (diff < 22) return false;
+  // Allow modest motion (diff >= 14) so ball during serve/toss is also detected
+  if (diff < 14) return false;
 
   if (profile.type === 'orange') {
-    // Orange ping-pong ball: Warm hue (orange/amber), high R, low B
-    if (r < 130 || g < 55 || b > 125 || r <= g || r - b < 35) return false;
+    // Orange ping-pong ball: Warm hue (orange/amber/yellow-orange), high R, low B
+    if (r < 115 || g < 45 || b > 135 || r <= g || r - b < 28) return false;
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const delta = max - min;
-    if (delta < 20) return false;
+    if (delta < 15) return false;
     const h = ((g - b) / delta) * 60;
-    return h >= 8 && h <= 58 && delta / max >= 0.30;
+    return h >= 5 && h <= 62 && delta / max >= 0.25;
   } else {
     // White ping-pong ball: High brightness across all channels, low saturation
-    if (r < 175 || g < 175 || b < 175) return false;
+    if (r < 160 || g < 160 || b < 160) return false;
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
-    return max - min < 35;
+    return max - min < 45;
   }
 }
 

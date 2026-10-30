@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PlayerTracker, PlayerFrame, RawPose, MatchMode, PlayerId } from '@/lib/playerTracker';
 import { CalibrationResult } from '@/lib/homography';
+import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 
 export interface PoseTrackerMetrics {
   inferenceFps: number;
@@ -43,8 +44,11 @@ export function usePoseTracker(
   });
 
   const workerRef = useRef<Worker | null>(null);
+  const mainLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const isFallbackActiveRef = useRef<boolean>(false);
   const trackerRef = useRef<PlayerTracker>(new PlayerTracker(initialMode));
   const isProcessingRef = useRef<boolean>(false);
+  const lastProcessTimeRef = useRef<number>(0);
   const frameCountRef = useRef<number>(0);
   const lastFpsTimeRef = useRef<number>(performance.now());
   const animFrameIdRef = useRef<number | null>(null);
@@ -64,11 +68,62 @@ export function usePoseTracker(
         numPoses: newMode === 'doubles' ? 4 : 2,
       });
     }
+    if (mainLandmarkerRef.current) {
+      try {
+        mainLandmarkerRef.current.setOptions({ numPoses: newMode === 'doubles' ? 4 : 2 });
+      } catch {
+        // ignore
+      }
+    }
   }, []);
 
-  // Initialize Worker
+  const initMainThreadFallback = useCallback(async () => {
+    if (mainLandmarkerRef.current || isFallbackActiveRef.current) return;
+    isFallbackActiveRef.current = true;
+    try {
+      setMetrics((prev) => ({ ...prev, delegate: 'CPU/GPU (Main)' }));
+      const origin = window.location.origin;
+      let vision;
+      try {
+        vision = await FilesetResolver.forVisionTasks(`${origin}/mediapipe/wasm`);
+      } catch {
+        vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm'
+        );
+      }
+
+      const modelAssetPath = `${origin}/mediapipe/models/pose_landmarker_lite.task`;
+      try {
+        mainLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath, delegate: 'GPU' },
+          runningMode: 'VIDEO',
+          numPoses: matchMode === 'doubles' ? 4 : 2,
+          minPoseDetectionConfidence: 0.35,
+          minPosePresenceConfidence: 0.35,
+          minTrackingConfidence: 0.35,
+        });
+        setMetrics((prev) => ({ ...prev, isReady: true, delegate: 'GPU (Main)' }));
+      } catch {
+        mainLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath, delegate: 'CPU' },
+          runningMode: 'VIDEO',
+          numPoses: matchMode === 'doubles' ? 4 : 2,
+          minPoseDetectionConfidence: 0.35,
+          minPosePresenceConfidence: 0.35,
+          minTrackingConfidence: 0.35,
+        });
+        setMetrics((prev) => ({ ...prev, isReady: true, delegate: 'CPU (Main)' }));
+      }
+    } catch (err) {
+      console.warn('Main thread pose fallback failed:', err);
+    }
+  }, [matchMode]);
+
+  // Initialize Worker with timeout fallback
   useEffect(() => {
     if (!isPoseEnabled) return;
+
+    let workerReady = false;
 
     try {
       const worker = new Worker(new URL('../workers/pose.worker.ts', import.meta.url), {
@@ -80,22 +135,19 @@ export function usePoseTracker(
         const { type, poses, timestampMs, inferenceTimeMs, delegate, error } = e.data;
 
         if (type === 'READY') {
+          workerReady = true;
           setMetrics((prev) => ({
             ...prev,
             isReady: true,
-            delegate: delegate || 'GPU',
+            delegate: delegate || 'GPU (Worker)',
           }));
-          // Synchronize numPoses
           worker.postMessage({
             type: 'SET_NUM_POSES',
             numPoses: matchMode === 'doubles' ? 4 : 2,
           });
         } else if (type === 'ERROR') {
-          console.warn('Pose worker reported error:', error);
-          setMetrics((prev) => ({
-            ...prev,
-            delegate: 'Error/CPU Fallback',
-          }));
+          console.warn('Pose worker error, triggering main fallback:', error);
+          initMainThreadFallback();
         } else if (type === 'RESULT') {
           isProcessingRef.current = false;
 
@@ -133,38 +185,111 @@ export function usePoseTracker(
       };
 
       worker.postMessage({ type: 'INIT' });
-    } catch (workerInitErr) {
-      console.warn('Failed to start pose worker:', workerInitErr);
-    }
 
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
-      }
-      trackerRef.current.reset();
-    };
-  }, [isPoseEnabled, videoRef]);
+      // Watchdog: If worker not ready in 3.5s, fallback to main thread
+      const timer = setTimeout(() => {
+        if (!workerReady) {
+          console.info('Pose worker timeout, activating main thread fallback');
+          initMainThreadFallback();
+        }
+      }, 3500);
+
+      return () => {
+        clearTimeout(timer);
+        if (workerRef.current) {
+          workerRef.current.terminate();
+          workerRef.current = null;
+        }
+        if (mainLandmarkerRef.current) {
+          mainLandmarkerRef.current.close();
+          mainLandmarkerRef.current = null;
+        }
+        trackerRef.current.reset();
+      };
+    } catch (workerInitErr) {
+      console.warn('Failed to start worker, using main thread:', workerInitErr);
+      initMainThreadFallback();
+    }
+  }, [isPoseEnabled, videoRef, initMainThreadFallback, matchMode]);
 
   // Frame pump loop
   const processFrame = useCallback(async () => {
     const video = videoRef.current;
-    const worker = workerRef.current;
-
     if (
       !video ||
       video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
       video.paused ||
       video.ended ||
-      !worker ||
-      isProcessingRef.current
+      video.videoWidth === 0 ||
+      video.videoHeight === 0
     ) {
       return;
     }
 
+    const now = performance.now();
+
+    // Watchdog: auto-release stuck processing flag after 400ms
+    if (isProcessingRef.current) {
+      if (now - lastProcessTimeRef.current > 400) {
+        isProcessingRef.current = false;
+      } else {
+        return;
+      }
+    }
+
+    // Main thread execution fallback
+    if (mainLandmarkerRef.current) {
+      isProcessingRef.current = true;
+      lastProcessTimeRef.current = now;
+      try {
+        const startTime = performance.now();
+        const detection = mainLandmarkerRef.current.detectForVideo(video, now);
+        const inferenceTimeMs = performance.now() - startTime;
+
+        const rawPoses = detection.landmarks.map((landmarks) => ({
+          landmarks: landmarks.map((l) => ({
+            x: l.x,
+            y: l.y,
+            z: l.z,
+            visibility: l.visibility,
+          })),
+        }));
+
+        const tracked = trackerRef.current.update(
+          rawPoses as RawPose[],
+          now,
+          video.videoWidth,
+          video.videoHeight,
+          calibrationRef.current
+        );
+        setPlayers(tracked);
+
+        frameCountRef.current++;
+        if (now - lastFpsTimeRef.current >= 1000) {
+          const elapsedSec = (now - lastFpsTimeRef.current) / 1000;
+          setMetrics((prev) => ({
+            ...prev,
+            inferenceFps: Math.round(frameCountRef.current / elapsedSec),
+            inferenceTimeMs: Math.round(inferenceTimeMs),
+          }));
+          frameCountRef.current = 0;
+          lastFpsTimeRef.current = now;
+        }
+      } catch (err) {
+        console.warn('Main thread pose inference error:', err);
+      } finally {
+        isProcessingRef.current = false;
+      }
+      return;
+    }
+
+    // Worker execution
+    const worker = workerRef.current;
+    if (!worker) return;
+
     const targetWidth = 640;
     const scale = targetWidth / Math.max(video.videoWidth, 1);
-    const targetHeight = Math.round(video.videoHeight * scale);
+    const targetHeight = Math.max(1, Math.round(video.videoHeight * scale));
 
     if (!offscreenCanvasRef.current) {
       offscreenCanvasRef.current = document.createElement('canvas');
@@ -182,24 +307,23 @@ export function usePoseTracker(
 
     try {
       isProcessingRef.current = true;
+      lastProcessTimeRef.current = now;
       const bitmap = await createImageBitmap(canvas);
-      const timestampMs = performance.now();
 
       worker.postMessage(
         {
           type: 'PROCESS_FRAME',
           bitmap,
-          timestampMs,
+          timestampMs: now,
         },
         [bitmap]
       );
-    } catch (e) {
+    } catch {
       isProcessingRef.current = false;
-      console.warn('Frame bitmap creation error:', e);
     }
   }, [videoRef]);
 
-  // Continuously request frames when video is playing
+  // Continuously request frames with rock-solid RAF loop
   useEffect(() => {
     if (!isPoseEnabled) return;
 
@@ -208,18 +332,10 @@ export function usePoseTracker(
     const frameLoop = () => {
       if (!isRunning) return;
       processFrame();
-
-      const video = videoRef.current;
-      if (video && 'requestVideoFrameCallback' in video) {
-        video.requestVideoFrameCallback(() => {
-          frameLoop();
-        });
-      } else {
-        animFrameIdRef.current = requestAnimationFrame(frameLoop);
-      }
+      animFrameIdRef.current = requestAnimationFrame(frameLoop);
     };
 
-    frameLoop();
+    animFrameIdRef.current = requestAnimationFrame(frameLoop);
 
     return () => {
       isRunning = false;
@@ -227,7 +343,7 @@ export function usePoseTracker(
         cancelAnimationFrame(animFrameIdRef.current);
       }
     };
-  }, [isPoseEnabled, processFrame, videoRef]);
+  }, [isPoseEnabled, processFrame]);
 
   return {
     p1: players.P1,

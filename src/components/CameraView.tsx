@@ -39,14 +39,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
     >
       {/* Video & Pixel-Perfect Overlay Stage */}
       <div
-        className="relative w-full h-full flex items-center justify-center overflow-hidden"
+        className="relative flex items-center justify-center overflow-hidden"
         style={{
           aspectRatio:
             settings && settings.width > 0 && settings.height > 0
               ? `${settings.width} / ${settings.height}`
-              : undefined,
+              : '16 / 9',
           maxWidth: '100%',
           maxHeight: '100%',
+          width: '100%',
         }}
       >
         {/* 1. Video Element (playsInline is vital for iOS Safari) */}
@@ -55,7 +56,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           playsInline
           muted
           autoPlay
-          className="w-full h-full object-contain bg-black block"
+          className="w-full h-full object-fill bg-black block"
         />
 
         {/* 3. Slot for Overlay (Canvas / HUD in F3-F5) */}

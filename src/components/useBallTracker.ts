@@ -44,6 +44,7 @@ export function useBallTracker(
   const rallyRef = useRef<RallyTracker>(new RallyTracker());
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isWorkerBusyRef = useRef<boolean>(false);
+  const lastWorkerSendTimeRef = useRef<number>(0);
   const animFrameIdRef = useRef<number | null>(null);
   const missedFramesRef = useRef<number>(0);
   const calibrationRef = useRef<CalibrationResult | null>(calibration);
@@ -143,10 +144,22 @@ export function useBallTracker(
       video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
       video.paused ||
       video.ended ||
-      !worker ||
-      isWorkerBusyRef.current
+      video.videoWidth === 0 ||
+      video.videoHeight === 0 ||
+      !worker
     ) {
       return;
+    }
+
+    const now = performance.now();
+
+    // Watchdog: auto-release busy lock if worker is stuck > 300ms
+    if (isWorkerBusyRef.current) {
+      if (now - lastWorkerSendTimeRef.current > 300) {
+        isWorkerBusyRef.current = false;
+      } else {
+        return;
+      }
     }
 
     const targetWidth = 320;
@@ -169,7 +182,7 @@ export function useBallTracker(
 
     try {
       isWorkerBusyRef.current = true;
-      const timestampMs = performance.now();
+      lastWorkerSendTimeRef.current = now;
 
       // Transfer pixel buffer to worker without cloning
       worker.postMessage(
@@ -178,7 +191,7 @@ export function useBallTracker(
           frameWidth: targetWidth,
           frameHeight: targetHeight,
           colorProfile,
-          timestampMs,
+          timestampMs: now,
         },
         [imgData.data.buffer]
       );
@@ -187,7 +200,7 @@ export function useBallTracker(
     }
   }, [colorProfile, videoRef]);
 
-  // Continuous frame loop
+  // Continuous frame loop with rock-solid RAF
   useEffect(() => {
     if (!isBallTrackingEnabled) return;
 
@@ -196,24 +209,16 @@ export function useBallTracker(
     const loop = () => {
       if (!isRunning) return;
       processBallFrame();
-
-      const video = videoRef.current;
-      if (video && 'requestVideoFrameCallback' in video) {
-        video.requestVideoFrameCallback(() => {
-          loop();
-        });
-      } else {
-        animFrameIdRef.current = requestAnimationFrame(loop);
-      }
+      animFrameIdRef.current = requestAnimationFrame(loop);
     };
 
-    loop();
+    animFrameIdRef.current = requestAnimationFrame(loop);
 
     return () => {
       isRunning = false;
       if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
     };
-  }, [isBallTrackingEnabled, processBallFrame, videoRef]);
+  }, [isBallTrackingEnabled, processBallFrame]);
 
   const resetRallyStats = useCallback(() => {
     rallyRef.current.reset();
